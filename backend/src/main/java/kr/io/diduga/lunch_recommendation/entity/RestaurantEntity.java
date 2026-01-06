@@ -34,11 +34,38 @@ public class RestaurantEntity {
     @Column(name = "address", nullable = false, length = 255)
     private String address; // 가게 위치(주소)
 
-    @Column(name = "food_type", nullable = false, length = 50)
-    private String foodType; // 음식 종류 (예: 한식, 일식, 양식 등)
+    /**
+     * 음식 타입 목록(JSON 문자열).
+     * Google Places 의 types 배열 전체를 JSON 형태로 저장한다.
+     *
+     * 예) ["korean_restaurant", "restaurant", "food", ...]
+     */
+    @Column(name = "place_types_json", length = 1000)
+    private String placeTypesJson;
 
     @Column(name = "thumbnail_url", length = 500)
     private String thumbnailUrl; // 썸네일 이미지 링크(혹은 외부 링크)
+
+    /**
+     * Google Places 의 placeId 값.
+     * 예) "ChIJW7FBDfCifDURHTpisLbVUH0"
+     */
+    @Column(name = "google_place_id", length = 100, unique = true)
+    private String googlePlaceId;
+
+    /**
+     * Google 지도 상세 페이지 URI.
+     */
+    @Column(name = "google_maps_uri", length = 500)
+    private String googleMapsUri;
+
+    /**
+     * 대표 사진 식별자.
+     * Google Places 응답의 photos[0].name 을 저장해두고,
+     * 실제 이미지 URL 은 별도 API 로 조회할 수 있다.
+     */
+    @Column(name = "photo_name", length = 500)
+    private String photoName;
 
     /**
      * 내 현재 위치와의 거리 (미터 단위 등).
@@ -55,13 +82,13 @@ public class RestaurantEntity {
             String name,
             BigDecimal rating,
             String address,
-            String foodType,
+            String placeTypesJson,
             String thumbnailUrl
     ) {
         this.name = name;
         this.rating = rating;
         this.address = address;
-        this.foodType = foodType;
+        this.placeTypesJson = placeTypesJson;
         this.thumbnailUrl = thumbnailUrl;
     }
 
@@ -73,10 +100,10 @@ public class RestaurantEntity {
             String name,
             BigDecimal rating,
             String address,
-            String foodType,
+            String placeTypesJson,
             String thumbnailUrl
     ) {
-        return new RestaurantEntity(name, rating, address, foodType, thumbnailUrl);
+        return new RestaurantEntity(name, rating, address, placeTypesJson, thumbnailUrl);
     }
 
     // ========= getter 들 =========
@@ -97,12 +124,24 @@ public class RestaurantEntity {
         return address;
     }
 
-    public String getFoodType() {
-        return foodType;
+    public String getPlaceTypesJson() {
+        return placeTypesJson;
     }
 
     public String getThumbnailUrl() {
         return thumbnailUrl;
+    }
+
+    public String getGooglePlaceId() {
+        return googlePlaceId;
+    }
+
+    public String getGoogleMapsUri() {
+        return googleMapsUri;
+    }
+
+    public String getPhotoName() {
+        return photoName;
     }
 
     public Integer getDistanceMeters() {
@@ -115,5 +154,23 @@ public class RestaurantEntity {
      */
     public void setDistanceMeters(Integer distanceMeters) {
         this.distanceMeters = distanceMeters;
+    }
+
+    // ========= setter 들 (외부 API 매핑 및 갱신용) =========
+
+    public void setGooglePlaceId(String googlePlaceId) {
+        this.googlePlaceId = googlePlaceId;
+    }
+
+    public void setGoogleMapsUri(String googleMapsUri) {
+        this.googleMapsUri = googleMapsUri;
+    }
+
+    public void setPlaceTypesJson(String placeTypesJson) {
+        this.placeTypesJson = placeTypesJson;
+    }
+
+    public void setPhotoName(String photoName) {
+        this.photoName = photoName;
     }
 }
