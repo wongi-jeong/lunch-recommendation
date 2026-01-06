@@ -21,16 +21,15 @@ public class RestaurantController {
      * 주변 음식점 검색 엔드포인트.
      *
      * 예시:
-     * GET /api/restaurants/nearby?lat=37.5665&lng=126.9780&radius=1000&keyword=korean
+     * GET /api/restaurants/nearby?lat=37.5665&lng=126.9780&radius=1000
      */
     @GetMapping("/nearby")
     public ResponseEntity<String> getNearbyRestaurants( //
         @RequestParam("lat") double latitude, //
         @RequestParam("lng") double longitude, //
-        @RequestParam(name = "radius", defaultValue = "1000") int radius, //
-        @RequestParam(name = "keyword", required = false) String keyword //
+        @RequestParam(name = "radius", defaultValue = "1000") int radius //
     ) {
-        String responseJson = restaurantService.searchNearbyRestaurants(latitude, longitude, radius, keyword);
+        String responseJson = restaurantService.searchNearbyRestaurants(latitude, longitude, radius);
         return ResponseEntity.ok(responseJson);
     }
 
