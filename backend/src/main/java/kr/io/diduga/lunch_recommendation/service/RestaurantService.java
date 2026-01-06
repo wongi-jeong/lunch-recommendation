@@ -1,5 +1,9 @@
 package kr.io.diduga.lunch_recommendation.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.io.diduga.lunch_recommendation.dto.RestaurantDto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -9,13 +13,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
 public class RestaurantService {
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     // 로컬 환경변수 GOOGLE_MAPS_API_KEY 에서 API 키를 주입받습니다.
     // (Spring Boot 는 환경변수를 자동으로 Property 로 매핑해 줍니다.)
@@ -30,17 +38,17 @@ public class RestaurantService {
     private static final HttpMethod HTTP_METHOD_POST = HttpMethod.POST;
 
     /**
-     * 현재 위치 기준 주변 음식점을 조회합니다.
+     * 현재 위치 기준 주변 음식점을 조회하고, RestaurantDto 리스트로 변환합니다.
      *
      * @param latitude  위도
      * @param longitude 경도
      * @param radius    검색 반경(미터)
-     * @return Google Places API 응답 JSON 문자열
+     * @return 주변 식당 정보 DTO 리스트
      */
-    public String searchNearbyRestaurants(double latitude, double longitude, int radius) {
+    public List<RestaurantDto> searchNearbyRestaurants(double latitude, double longitude, int radius) {
         // 요청 본문 구성
         Map<String, Object> requestBody = new HashMap<>();
-        
+
         // 위치 제한 설정
         Map<String, Object> locationRestriction = new HashMap<>();
         Map<String, Object> circle = new HashMap<>();
@@ -51,13 +59,13 @@ public class RestaurantService {
         circle.put("radius", radius);
         locationRestriction.put("circle", circle);
         requestBody.put("locationRestriction", locationRestriction);
-        
+
         // 식당 타입 지정
         requestBody.put("includedTypes", new String[]{"restaurant"});
-        
+
         // 한국어 응답
         requestBody.put("languageCode", "ko");
-        
+
         // 최대 결과 개수 (기본값: 10)
         requestBody.put("maxResultCount", 10);
 
@@ -70,17 +78,89 @@ public class RestaurantService {
         HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
 
         try {
-            return restTemplate.exchange(
-                GOOGLE_PLACES_NEARBY_SEARCH_URL,
-                HTTP_METHOD_POST,
-                requestEntity,
-                String.class
+            String responseJson = restTemplate.exchange(
+                    GOOGLE_PLACES_NEARBY_SEARCH_URL,
+                    HTTP_METHOD_POST,
+                    requestEntity,
+                    String.class
             ).getBody();
+
+            return mapToRestaurantDtos(responseJson);
         }
         catch (RestClientException e) {
             // 실제 서비스에서는 로깅 및 예외 변환을 추가하는 것이 좋습니다.
             throw new IllegalStateException("Google Places API 호출 중 오류가 발생했습니다.", e);
         }
+    }
+
+    /**
+     * Google Places API 응답 JSON을 파싱하여 RestaurantDto 리스트로 변환합니다.
+     */
+    private List<RestaurantDto> mapToRestaurantDtos(String responseJson) {
+        List<RestaurantDto> result = new ArrayList<>();
+
+        if (responseJson == null || responseJson.isBlank()) {
+            return result;
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(responseJson);
+            JsonNode places = root.path("places");
+
+            if (!places.isArray()) {
+                return result;
+            }
+
+            for (JsonNode placeNode : places) {
+                String googlePlaceId = placeNode.path("id").asText(null);
+                String name = placeNode.path("displayName").path("text").asText(null);
+                String address = placeNode.path("formattedAddress").asText(null);
+
+                BigDecimal rating = null;
+                if (placeNode.has("rating")) {
+                    // rating 이 정수/실수 모두 올 수 있으므로 문자열로 받아 BigDecimal 로 변환
+                    rating = new BigDecimal(placeNode.get("rating").asText());
+                }
+
+                // types 배열을 JSON 문자열로 저장
+                String placeTypesJson = null;
+                JsonNode typesNode = placeNode.path("types");
+                if (!typesNode.isMissingNode() && !typesNode.isNull()) {
+                    placeTypesJson = objectMapper.writeValueAsString(typesNode);
+                }
+
+                // 대표 사진 정보
+                String photoName = null;
+                String thumbnailUrl = null; // v1 API 에서는 바로 URL 이 오지 않아, 추후 별도 API 로 구성
+
+                JsonNode photos = placeNode.path("photos");
+                if (photos.isArray() && photos.size() > 0) {
+                    JsonNode firstPhoto = photos.get(0);
+                    photoName = firstPhoto.path("name").asText(null);
+                }
+
+                String googleMapsUri = placeNode.path("googleMapsUri").asText(null);
+
+                // distanceMeters 는 응답에 없거나 다른 방식으로 계산해야 하므로 일단 null
+                RestaurantDto dto = RestaurantDto.of(
+                        name,
+                        rating,
+                        address,
+                        placeTypesJson,
+                        thumbnailUrl,
+                        googlePlaceId,
+                        googleMapsUri,
+                        photoName,
+                        null
+                );
+
+                result.add(dto);
+            }
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Google Places API 응답 파싱 중 오류가 발생했습니다.", e);
+        }
+
+        return result;
     }
 
 }
