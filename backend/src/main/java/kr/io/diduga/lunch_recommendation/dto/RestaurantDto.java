@@ -19,6 +19,8 @@ public class RestaurantDto {
     private String googleMapsUri;      // Google Maps 상세 URL
     private String photoName;          // 대표 사진 name
     private Integer distanceMeters;    // 기준 위치와의 거리(미터) - 필요 시 계산해서 세팅
+    private Double latitude;           // 위도
+    private Double longitude;          // 경도
 
     public RestaurantDto() {
         // Jackson 역직렬화를 위한 기본 생성자
@@ -33,7 +35,9 @@ public class RestaurantDto {
             String googlePlaceId,
             String googleMapsUri,
             String photoName,
-            Integer distanceMeters
+            Integer distanceMeters,
+            Double latitude,
+            Double longitude
     ) {
         this.name = name;
         this.rating = rating;
@@ -44,6 +48,8 @@ public class RestaurantDto {
         this.googleMapsUri = googleMapsUri;
         this.photoName = photoName;
         this.distanceMeters = distanceMeters;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public static RestaurantDto of(
@@ -55,7 +61,9 @@ public class RestaurantDto {
             String googlePlaceId,
             String googleMapsUri,
             String photoName,
-            Integer distanceMeters
+            Integer distanceMeters,
+            Double latitude,
+            Double longitude
     ) {
         return new RestaurantDto(
                 name,
@@ -66,7 +74,9 @@ public class RestaurantDto {
                 googlePlaceId,
                 googleMapsUri,
                 photoName,
-                distanceMeters
+                distanceMeters,
+                latitude,
+                longitude
         );
     }
 
@@ -142,6 +152,22 @@ public class RestaurantDto {
 
     public void setDistanceMeters(Integer distanceMeters) {
         this.distanceMeters = distanceMeters;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 }
 

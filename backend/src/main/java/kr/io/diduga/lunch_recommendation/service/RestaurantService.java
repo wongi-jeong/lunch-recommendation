@@ -141,6 +141,19 @@ public class RestaurantService {
 
                 String googleMapsUri = placeNode.path("googleMapsUri").asText(null);
 
+                // 위치 정보 (위도, 경도) 파싱
+                Double latitude = null;
+                Double longitude = null;
+                JsonNode locationNode = placeNode.path("location");
+                if (!locationNode.isMissingNode() && !locationNode.isNull()) {
+                    if (locationNode.has("latitude")) {
+                        latitude = locationNode.get("latitude").asDouble();
+                    }
+                    if (locationNode.has("longitude")) {
+                        longitude = locationNode.get("longitude").asDouble();
+                    }
+                }
+
                 // distanceMeters 는 응답에 없거나 다른 방식으로 계산해야 하므로 일단 null
                 RestaurantDto dto = RestaurantDto.of(
                         name,
@@ -151,7 +164,9 @@ public class RestaurantService {
                         googlePlaceId,
                         googleMapsUri,
                         photoName,
-                        null
+                        null,
+                        latitude,
+                        longitude
                 );
 
                 result.add(dto);

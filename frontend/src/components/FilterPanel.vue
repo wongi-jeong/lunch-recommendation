@@ -9,6 +9,10 @@ const props = defineProps({
       foodTypes: [],
       openOnly: false
     })
+  },
+  loading: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -86,7 +90,9 @@ const toggleFoodType = (typeId) => {
 }
 
 const handleRecommend = () => {
-  emit('recommend')
+  if (!props.loading) {
+    emit('recommend')
+  }
 }
 </script>
 
@@ -162,8 +168,14 @@ const handleRecommend = () => {
       </div>
 
       <!-- 추천 받기 버튼 -->
-      <button class="recommend-button" @click="handleRecommend">
-        추천 받기
+      <button 
+        class="recommend-button" 
+        :class="{ loading: loading }"
+        :disabled="loading"
+        @click="handleRecommend"
+      >
+        <span v-if="loading" class="loading-spinner"></span>
+        {{ loading ? '위치 확인 중...' : '추천 받기' }}
       </button>
 
       <!-- 안내 문구 -->
@@ -351,6 +363,33 @@ const handleRecommend = () => {
 
 .recommend-button:active {
   background-color: #cc3a24;
+}
+
+.recommend-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.recommend-button.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .help-text {
