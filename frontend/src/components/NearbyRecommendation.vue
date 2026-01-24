@@ -119,7 +119,7 @@ const handleRecommend = async () => {
           address: restaurant.address,
           googleMapsUri: restaurant.googleMapsUri,
           distanceMeters: restaurant.distanceMeters,
-          thumbnailUrl: restaurant.thumbnailUrl
+          photoName: restaurant.photoName
         }))
       
       // 경로 업데이트 - 현재 위치에서 첫 번째 식당까지의 경로
