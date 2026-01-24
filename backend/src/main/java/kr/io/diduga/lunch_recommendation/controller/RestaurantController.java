@@ -2,12 +2,14 @@ package kr.io.diduga.lunch_recommendation.controller;
 
 import kr.io.diduga.lunch_recommendation.dto.RestaurantDto;
 import kr.io.diduga.lunch_recommendation.service.RestaurantService;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URI;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -44,6 +46,21 @@ public class RestaurantController {
         // 최대 5개로 제한
         restaurants = restaurants.stream().limit(5).collect(Collectors.toList());
         return ResponseEntity.ok(restaurants);
+    }
+
+    /**
+     * photo name(places.photos[].name)으로 이미지 URI를 조회하고 302 리다이렉트합니다.
+     * 프론트에서 img src 로 사용 시 photoName 배열 0번째를 쿼리로 전달합니다.
+     */
+    @GetMapping("/photo")
+    public ResponseEntity<Void> getPhotoRedirect(@RequestParam("name") String photoName) {
+        String photoUri = restaurantService.getPhotoUri(photoName);
+        if (photoUri == null || photoUri.isBlank()) {
+            return ResponseEntity.notFound().build();
+        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.setLocation(URI.create(photoUri));
+        return ResponseEntity.status(302).headers(headers).build();
     }
 
 }

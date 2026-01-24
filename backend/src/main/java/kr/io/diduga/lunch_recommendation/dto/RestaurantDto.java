@@ -1,6 +1,7 @@
 package kr.io.diduga.lunch_recommendation.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * 식당 정보를 API 응답으로 전달하기 위한 DTO.
@@ -17,7 +18,7 @@ public class RestaurantDto {
     private String thumbnailUrl;       // 썸네일 이미지 URL(추후 구현용, 현재는 null 일 수 있음)
     private String googlePlaceId;      // Google Places placeId
     private String googleMapsUri;      // Google Maps 상세 URL
-    private String photoName;          // 대표 사진 name
+    private List<String> photoName;    // 사진 name 배열 (places.photos[].name, 0번째를 썸네일로 사용)
     private Integer distanceMeters;    // 기준 위치와의 거리(미터) - 필요 시 계산해서 세팅
     private Double latitude;           // 위도
     private Double longitude;          // 경도
@@ -34,7 +35,7 @@ public class RestaurantDto {
             String thumbnailUrl,
             String googlePlaceId,
             String googleMapsUri,
-            String photoName,
+            List<String> photoName,
             Integer distanceMeters,
             Double latitude,
             Double longitude
@@ -60,7 +61,7 @@ public class RestaurantDto {
             String thumbnailUrl,
             String googlePlaceId,
             String googleMapsUri,
-            String photoName,
+            List<String> photoName,
             Integer distanceMeters,
             Double latitude,
             Double longitude
@@ -138,11 +139,11 @@ public class RestaurantDto {
         this.googleMapsUri = googleMapsUri;
     }
 
-    public String getPhotoName() {
+    public List<String> getPhotoName() {
         return photoName;
     }
 
-    public void setPhotoName(String photoName) {
+    public void setPhotoName(List<String> photoName) {
         this.photoName = photoName;
     }
 
