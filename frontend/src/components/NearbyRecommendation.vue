@@ -36,6 +36,19 @@ onMounted(() => {
 // 검색된 식당 목록
 const restaurants = ref([])
 
+// FilterPanel foodTypes id → 백엔드 categories(한글 라벨) 매핑
+const FOOD_TYPE_TO_CATEGORY = {
+  korean: '한식',
+  chinese: '중식',
+  japanese: '일식',
+  western: '양식',
+  vegan: '비건',
+  asian: '아시안',
+  fastfood: '패스트푸드',
+  meat: '고기',
+  noodle: '면/국물'
+}
+
 // 추천 받기 버튼 클릭 핸들러
 const handleRecommend = async () => {
   if (isLoading.value) return
@@ -53,18 +66,34 @@ const handleRecommend = async () => {
     // 선택된 거리(radius) 값 가져오기
     const radius = filters.value.distance // 300, 800, 1200 중 하나
     
+    // 선택된 음식 종류 → filterCategories 리스트로 변환 (백엔드 한글 라벨)
+    const filterCategories = (filters.value.foodTypes || [])
+      .map(id => FOOD_TYPE_TO_CATEGORY[id])
+      .filter(Boolean)
+
+    if (!filterCategories.length) {
+      isLoading.value = false
+      return
+    }
+    
     console.log('=== 추천 요청 데이터 ===')
     console.log('사용자 위치 (위도):', userLocation.lat)
     console.log('사용자 위치 (경도):', userLocation.lng)
     console.log('검색 반경 (미터):', radius)
+    console.log('필터 카테고리:', filterCategories)
     
     // 지도 중심 업데이트
     mapCenter.value = userLocation
     
-    // 백엔드 API 호출
-    const response = await fetch(
-      `/api/restaurants/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=${radius}`
-    )
+    // 백엔드 API 호출 (categories 리스트 전달)
+    const params = new URLSearchParams({
+      lat: String(userLocation.lat),
+      lng: String(userLocation.lng),
+      radius: String(radius)
+    })
+    filterCategories.forEach(cat => params.append('categories', cat))
+    
+    const response = await fetch(`/api/restaurants/nearby?${params.toString()}`)
     
     if (!response.ok) {
       throw new Error(`API 요청 실패: ${response.status} ${response.statusText}`)

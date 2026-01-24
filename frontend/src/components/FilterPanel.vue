@@ -89,10 +89,11 @@ const toggleFoodType = (typeId) => {
   }
 }
 
+const canRecommend = computed(() => (props.modelValue.foodTypes?.length ?? 0) > 0)
+
 const handleRecommend = () => {
-  if (!props.loading) {
-    emit('recommend')
-  }
+  if (props.loading || !canRecommend.value) return
+  emit('recommend')
 }
 </script>
 
@@ -167,11 +168,12 @@ const handleRecommend = () => {
         </div>
       </div>
 
-      <!-- 추천 받기 버튼 -->
+      <!-- 추천 받기 버튼 (음식 종류 1개 이상 선택 시에만 활성화) -->
       <button 
         class="recommend-button" 
-        :class="{ loading: loading }"
-        :disabled="loading"
+        :class="{ loading }"
+        :disabled="loading || !canRecommend"
+        :title="!canRecommend ? '음식 종류를 하나 이상 선택해주세요' : undefined"
         @click="handleRecommend"
       >
         <span v-if="loading" class="loading-spinner"></span>

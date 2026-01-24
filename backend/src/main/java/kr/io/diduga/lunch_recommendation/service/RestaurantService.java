@@ -14,10 +14,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class RestaurantService {
@@ -36,6 +34,91 @@ public class RestaurantService {
     private static final String FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.location,places.types,places.rating,places.photos.name,places.photos.widthPx,places.photos.heightPx,places.currentOpeningHours.openNow,places.googleMapsUri";
 
     private static final HttpMethod HTTP_METHOD_POST = HttpMethod.POST;
+
+    /**
+     * 필터 카테고리별 Google Places API 타입 매핑
+     * 이미지에 제시된 카테고리 구조를 기반으로 구성
+     */
+    private static final Map<String, Set<String>> FILTER_CATEGORY_MAP = new HashMap<>();
+ 
+    static {
+        // 한식
+        FILTER_CATEGORY_MAP.put("한식", Set.of(
+                "korean_restaurant",
+                "barbecue_restaurant",
+                "buffet_restaurant"
+        ));
+
+        // 일식
+        FILTER_CATEGORY_MAP.put("일식", Set.of(
+                "japanese_restaurant",
+                "ramen_restaurant",
+                "sushi_restaurant"
+        ));
+
+        // 중식
+        FILTER_CATEGORY_MAP.put("중식", Set.of(
+                "chinese_restaurant"
+        ));
+
+        // 양식
+        FILTER_CATEGORY_MAP.put("양식", Set.of(
+                "italian_restaurant",
+                "french_restaurant",
+                "american_restaurant",
+                "spanish_restaurant",
+                "greek_restaurant",
+                "steak_house",
+                "cafe"
+        ));
+
+        // 아시안
+        FILTER_CATEGORY_MAP.put("아시안", Set.of(
+                "vietnamese_restaurant",
+                "thai_restaurant",
+                "indian_restaurant",
+                "indonesian_restaurant",
+                "mediterranean_restaurant",
+                "turkish_restaurant",
+                "middle_eastern_restaurant",
+                "lebanese_restaurant",
+                "brazilian_restaurant",
+                "afghani_restaurant",
+                "african_restaurant"
+        ));
+
+        // 패스트푸드
+        FILTER_CATEGORY_MAP.put("패스트푸드", Set.of(
+                "fast_food_restaurant",
+                "hamburger_restaurant",
+                "sandwich_shop",
+                "deli",
+                "cafeteria",
+                "bagel_shop"
+        ));
+
+        // 고기
+        FILTER_CATEGORY_MAP.put("고기", Set.of(
+                "bar_and_grill",
+                "barbecue_restaurant",
+                "steak_house"
+        ));
+
+        // 면/국물
+        FILTER_CATEGORY_MAP.put("면/국물", Set.of(
+                "ramen_restaurant",
+                "noodle_restaurant",
+                "vietnamese_restaurant"
+                // soup-based는 Google API 타입이 아니므로 내부 태그로 처리 필요
+        ));
+
+        // 비건
+        FILTER_CATEGORY_MAP.put("비건", Set.of(
+                "vegan_restaurant",
+                "vegetarian_restaurant",
+                "salad_bar"
+        ));
+    }
 
     /**
      * 현재 위치 기준 주변 음식점을 조회하고, RestaurantDto 리스트로 변환합니다.
@@ -176,6 +259,61 @@ public class RestaurantService {
         }
 
         return result;
+    }
+
+    /**
+     * 필터링 정보를 기반으로 RestaurantDto 리스트를 필터링합니다.
+     *
+     * @param restaurants RestaurantDto 리스트
+     * @param filterCategories 필터링할 카테고리 리스트 (예: ["한식", "일식"])
+     * @return 필터링된 RestaurantDto 리스트
+     */
+    public List<RestaurantDto> filterRestaurantsByCategories(List<RestaurantDto> restaurants, List<String> filterCategories) {
+        if (filterCategories == null || filterCategories.isEmpty()) {
+            return restaurants;
+        }
+
+        // 필터 카테고리에 해당하는 모든 Google API 타입을 수집
+        Set<String> targetTypes = new HashSet<>();
+        for (String category : filterCategories) {
+            Set<String> types = FILTER_CATEGORY_MAP.get(category);
+            if (types != null) {
+                targetTypes.addAll(types);
+            }
+        }
+
+        if (targetTypes.isEmpty()) {
+            return restaurants;
+        }
+
+        // placeTypesJson에서 해당 타입이 하나라도 포함된 식당만 필터링
+        return restaurants.stream()
+                .filter(restaurant -> {
+                    String placeTypesJson = restaurant.getPlaceTypesJson();
+                    if (placeTypesJson == null || placeTypesJson.isBlank()) {
+                        return false;
+                    }
+
+                    try {
+                        JsonNode typesNode = objectMapper.readTree(placeTypesJson);
+                        if (!typesNode.isArray()) {
+                            return false;
+                        }
+
+                        // placeTypesJson 배열에 targetTypes 중 하나라도 포함되어 있는지 확인
+                        for (JsonNode typeNode : typesNode) {
+                            String type = typeNode.asText();
+                            if (targetTypes.contains(type)) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    } catch (JsonProcessingException e) {
+                        // JSON 파싱 실패 시 해당 식당은 제외
+                        return false;
+                    }
+                })
+                .collect(Collectors.toList());
     }
 
 }
