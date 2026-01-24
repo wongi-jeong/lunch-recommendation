@@ -354,12 +354,14 @@ const createInfoWindowContent = (markerData, index) => {
   const distance = markerData.distanceMeters ? `${(markerData.distanceMeters / 1000).toFixed(1)}km` : ''
   const mapsLink = markerData.googleMapsUri ? `<a href="${markerData.googleMapsUri}" target="_blank" style="color: #1976D2; text-decoration: none;">Google 지도에서 보기</a>` : ''
   
-  // 썸네일 이미지: photoName 배열의 0번째 인덱스를 사용, 없거나 로드 실패 시 기본 이미지 사용
-  const photoName = markerData.photoName && Array.isArray(markerData.photoName) && markerData.photoName.length > 0 
-    ? markerData.photoName[0] 
-    : (markerData.photoName || null)
-  const thumbnailUrl = photoName || defaultThumbnail
-  const thumbnail = `<img src="${thumbnailUrl}" alt="${name}" style="max-width: 250px; max-height: 250px; width: auto; height: auto; object-fit: contain; border-radius: 8px; margin-bottom: 12px; display: block;" onerror="this.src='${defaultThumbnail}'">`
+  // 썸네일 이미지: RestaurantDto photoName 배열의 0번째로 /api/restaurants/photo 호출, 없거나 실패 시 기본 이미지
+  const firstPhotoName = markerData.photoName && Array.isArray(markerData.photoName) && markerData.photoName.length > 0
+    ? markerData.photoName[0]
+    : null
+  const thumbnailSrc = firstPhotoName
+    ? `/api/restaurants/photo?name=${encodeURIComponent(firstPhotoName)}`
+    : defaultThumbnail
+  const thumbnail = `<img src="${thumbnailSrc}" alt="${name}" style="max-width: 250px; max-height: 250px; width: auto; height: auto; object-fit: contain; border-radius: 8px; margin-bottom: 12px; display: block;" onerror="this.src='${defaultThumbnail}'">`
   
   return `
     <div style="padding: 12px; min-width: 200px; max-width: 274px; font-family: 'Pretendard', sans-serif;">

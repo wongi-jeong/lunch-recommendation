@@ -29,6 +29,7 @@ public class RestaurantService {
     private String googlePlacesApiKey;
 
     private static final String GOOGLE_PLACES_NEARBY_SEARCH_URL = "https://places.googleapis.com/v1/places:searchNearby";
+    private static final String GOOGLE_PLACES_PHOTO_MEDIA_URL = "https://places.googleapis.com/v1/%s/media";
 
     // 필드 마스크: 필요한 정보만 요청
     private static final String FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.location,places.types,places.rating,places.photos.name,places.photos.widthPx,places.photos.heightPx,places.currentOpeningHours.openNow,places.googleMapsUri";
@@ -212,14 +213,18 @@ public class RestaurantService {
                     placeTypesJson = objectMapper.writeValueAsString(typesNode);
                 }
 
-                // 대표 사진 정보
-                String photoName = null;
+                // 사진 name 배열 (0번째를 썸네일로 사용)
+                List<String> photoNames = new ArrayList<>();
                 String thumbnailUrl = null; // v1 API 에서는 바로 URL 이 오지 않아, 추후 별도 API 로 구성
 
                 JsonNode photos = placeNode.path("photos");
-                if (photos.isArray() && photos.size() > 0) {
-                    JsonNode firstPhoto = photos.get(0);
-                    photoName = firstPhoto.path("name").asText(null);
+                if (photos.isArray()) {
+                    for (JsonNode p : photos) {
+                        String n = p.path("name").asText(null);
+                        if (n != null && !n.isBlank()) {
+                            photoNames.add(n);
+                        }
+                    }
                 }
 
                 String googleMapsUri = placeNode.path("googleMapsUri").asText(null);
@@ -246,7 +251,7 @@ public class RestaurantService {
                         thumbnailUrl,
                         googlePlaceId,
                         googleMapsUri,
-                        photoName,
+                        photoNames.isEmpty() ? null : photoNames,
                         null,
                         latitude,
                         longitude
@@ -314,6 +319,32 @@ public class RestaurantService {
                     }
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Google Places API getMedia 를 호출하여 photo name 에 대응하는 이미지 URI 를 조회합니다.
+     *
+     * @param photoName places.photos[].name (예: places/ChIJ.../photos/...)
+     * @return photoUri, 없거나 오류 시 null
+     */
+    public String getPhotoUri(String photoName) {
+        if (photoName == null || photoName.isBlank()) {
+            return null;
+        }
+        String url = String.format(GOOGLE_PLACES_PHOTO_MEDIA_URL + "?maxHeightPx=400&skipHttpRedirect=true", photoName);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Goog-Api-Key", googlePlacesApiKey);
+        HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
+        try {
+            String json = restTemplate.exchange(url, HttpMethod.GET, requestEntity, String.class).getBody();
+            if (json == null || json.isBlank()) {
+                return null;
+            }
+            JsonNode root = objectMapper.readTree(json);
+            return root.path("photoUri").asText(null);
+        } catch (RestClientException | JsonProcessingException e) {
+            return null;
+        }
     }
 
 }
