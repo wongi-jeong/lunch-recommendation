@@ -6,8 +6,7 @@ const props = defineProps({
     type: Object,
     default: () => ({
       distance: 300,
-      foodTypes: [],
-      openOnly: false
+      foodTypes: []
     })
   },
   loading: {
@@ -58,16 +57,6 @@ const selectedFoodTypes = computed({
     emit('update:modelValue', {
       ...props.modelValue,
       foodTypes: value
-    })
-  }
-})
-
-const openOnly = computed({
-  get: () => props.modelValue.openOnly,
-  set: (value) => {
-    emit('update:modelValue', {
-      ...props.modelValue,
-      openOnly: value
     })
   }
 })
@@ -152,19 +141,6 @@ const handleRecommend = () => {
           >
             {{ type.label }}
           </button>
-        </div>
-      </div>
-
-      <!-- 영업중인 가게만 보기 -->
-      <div class="filter-section">
-        <div class="checkbox-wrapper">
-          <input
-            type="checkbox"
-            id="open-only"
-            v-model="openOnly"
-            class="checkbox-input"
-          />
-          <label for="open-only" class="checkbox-label">영업중인 가게만 보기</label>
         </div>
       </div>
 

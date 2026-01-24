@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/restaurants")
@@ -40,6 +41,8 @@ public class RestaurantController {
 
         List<RestaurantDto> restaurants = restaurantService.searchNearbyRestaurants(latitude, longitude, radius);
         restaurants = restaurantService.filterRestaurantsByCategories(restaurants, filterCategories);
+        // 최대 5개로 제한
+        restaurants = restaurants.stream().limit(5).collect(Collectors.toList());
         return ResponseEntity.ok(restaurants);
     }
 

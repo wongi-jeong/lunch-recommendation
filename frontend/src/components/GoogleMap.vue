@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import pegmanIcon from '@/assets/pegman-offscreen-2x.svg'
+import defaultThumbnail from '@/assets/restaurnt_thumbnail_default_image.png'
 
 const props = defineProps({
   apiKey: {
@@ -28,6 +29,7 @@ const props = defineProps({
 const mapContainer = ref(null)
 let map = null
 let markers = []
+let infoWindows = []
 let directionsService = null
 let directionsRenderer = null
 let currentLocationButton = null
@@ -276,9 +278,11 @@ const moveToCurrentLocation = () => {
 }
 
 const updateMarkers = () => {
-  // 기존 마커 제거
+  // 기존 마커 및 InfoWindow 제거
   markers.forEach(marker => marker.setMap(null))
   markers = []
+  infoWindows.forEach(infoWindow => infoWindow.close())
+  infoWindows = []
 
   // 현재 위치 마커 추가 (파란색 원)
   if (props.center) {
@@ -320,8 +324,54 @@ const updateMarkers = () => {
         strokeWeight: 2
       }
     })
+    
+    // InfoWindow 생성 및 마커 클릭 이벤트 추가
+    if (markerData.name) {
+      const infoContent = createInfoWindowContent(markerData, index + 1)
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: infoContent
+      })
+      
+      marker.addListener('click', () => {
+        // 다른 InfoWindow 닫기
+        infoWindows.forEach(iw => iw.close())
+        // 현재 InfoWindow 열기
+        infoWindow.open(map, marker)
+      })
+      
+      infoWindows.push(infoWindow)
+    }
+    
     markers.push(marker)
   })
+}
+
+// InfoWindow 내용 생성 함수
+const createInfoWindowContent = (markerData, index) => {
+  const name = markerData.name || '식당 이름 없음'
+  const rating = markerData.rating ? `⭐ ${markerData.rating.toFixed(1)}` : ''
+  const address = markerData.address || '주소 정보 없음'
+  const distance = markerData.distanceMeters ? `${(markerData.distanceMeters / 1000).toFixed(1)}km` : ''
+  const mapsLink = markerData.googleMapsUri ? `<a href="${markerData.googleMapsUri}" target="_blank" style="color: #1976D2; text-decoration: none;">Google 지도에서 보기</a>` : ''
+  
+  // 썸네일 이미지: thumbnailUrl이 있으면 사용, 없거나 로드 실패 시 기본 이미지 사용
+  const thumbnailUrl = markerData.thumbnailUrl || defaultThumbnail
+  const thumbnail = `<img src="${thumbnailUrl}" alt="${name}" style="max-width: 250px; max-height: 250px; width: auto; height: auto; object-fit: contain; border-radius: 8px; margin-bottom: 12px; display: block;" onerror="this.src='${defaultThumbnail}'">`
+  
+  return `
+    <div style="padding: 12px; min-width: 200px; max-width: 274px; font-family: 'Pretendard', sans-serif;">
+      ${thumbnail}
+      <div style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #202124;">
+        ${index}. ${name}
+      </div>
+      ${rating ? `<div style="font-size: 14px; color: #5f6368; margin-bottom: 6px;">${rating}</div>` : ''}
+      <div style="font-size: 13px; color: #5f6368; margin-bottom: 8px; line-height: 1.4;">
+        ${address}
+      </div>
+      ${distance ? `<div style="font-size: 12px; color: #80868b; margin-bottom: 8px;">거리: ${distance}</div>` : ''}
+      ${mapsLink ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e8eaed;">${mapsLink}</div>` : ''}
+    </div>
+  `
 }
 
 const routeRenderers = []

@@ -115,7 +115,11 @@ const handleRecommend = async () => {
           lng: restaurant.longitude,
           color: index === 0 ? '#34A853' : '#FF5531', // 첫 번째 식당은 녹색으로 표시
           name: restaurant.name,
-          rating: restaurant.rating
+          rating: restaurant.rating,
+          address: restaurant.address,
+          googleMapsUri: restaurant.googleMapsUri,
+          distanceMeters: restaurant.distanceMeters,
+          thumbnailUrl: restaurant.thumbnailUrl
         }))
       
       // 경로 업데이트 - 현재 위치에서 첫 번째 식당까지의 경로
