@@ -41,9 +41,16 @@ public class RestaurantController {
             return ResponseEntity.ok(List.of());
         }
 
+        // 1. Google Places API 호출 (거리 계산 없이)
         List<RestaurantDto> restaurants = restaurantService.searchNearbyRestaurants(latitude, longitude, radius);
+        
+        // 2. 카테고리 필터링
         restaurants = restaurantService.filterRestaurantsByCategories(restaurants, filterCategories);
-        // 최대 5개로 제한
+        
+        // 3. 필터링된 결과에 대해서만 거리 계산 (Distance Matrix API 호출 최소화)
+        restaurants = restaurantService.calculateDistancesForRestaurants(restaurants, latitude, longitude);
+        
+        // 4. 최대 5개로 제한
         restaurants = restaurants.stream().limit(5).collect(Collectors.toList());
         return ResponseEntity.ok(restaurants);
     }
