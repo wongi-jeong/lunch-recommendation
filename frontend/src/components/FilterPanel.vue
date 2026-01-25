@@ -165,15 +165,15 @@ const handleRecommend = () => {
 <style scoped>
 .filter-panel {
   position: absolute;
-  top: 80px;
-  left: 0;
+  top: 10px;
+  left: 360px;
   width: 400px;
   background-color: white;
-  border-radius: 0 16px 16px 0;
+  border-radius: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   z-index: 1000;
-  max-height: calc(100vh - 80px);
-  overflow-y: auto;
+  bottom: 300px;
+  overflow: visible;
 }
 
 .filter-header {
@@ -182,6 +182,7 @@ const handleRecommend = () => {
   gap: 8px;
   padding: 20px 24px;
   border-bottom: 1px solid #e8eaed;
+  height: 12px;
 }
 
 .filter-title {
