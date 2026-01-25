@@ -102,9 +102,29 @@ const handleRecommend = async () => {
     const data = await response.json()
     restaurants.value = data
     
-    console.log('=== 검색 결과 ===')
-    console.log('검색된 식당 수:', data.length)
-    console.log('식당 목록:', data)
+    // 추천 식당 정보 출력
+    console.log('=== 추천 식당 리스트 (최대 5개) ===')
+    if (data.length > 0) {
+      console.log(`총 ${data.length}개의 식당이 추천되었습니다.`)
+      data.forEach((restaurant, index) => {
+        const rating = restaurant.rating ? `⭐ ${restaurant.rating}` : '평점 없음'
+        const distanceInfo = restaurant.distanceMeters 
+          ? restaurant.distanceType === 'WALKING' 
+            ? `${restaurant.distanceMeters}m (도보 거리)`
+            : `${restaurant.distanceMeters}m (직선 거리)`
+          : '거리 정보 없음'
+        const googleMapsLink = restaurant.googleMapsUri 
+          ? `🔗 ${restaurant.googleMapsUri}`
+          : 'Google 지도 링크 없음'
+        console.log(`${index + 1}. ${restaurant.name || '이름 없음'}`)
+        console.log(`   - 평점: ${rating}`)
+        console.log(`   - 주소: ${restaurant.address || '주소 없음'}`)
+        console.log(`   - 거리: ${distanceInfo}`)
+        console.log(`   - Google 지도: ${googleMapsLink}`)
+      })
+    } else {
+      console.log('검색된 식당이 없습니다.')
+    }
     
     // 마커 업데이트 - 검색된 식당들을 지도에 표시
     if (data.length > 0) {

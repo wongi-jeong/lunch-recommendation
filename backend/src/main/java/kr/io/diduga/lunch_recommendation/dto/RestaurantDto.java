@@ -20,6 +20,7 @@ public class RestaurantDto {
     private String googleMapsUri;      // Google Maps 상세 URL
     private List<String> photoName;    // 사진 name 배열 (places.photos[].name, 0번째를 썸네일로 사용)
     private Integer distanceMeters;    // 기준 위치와의 거리(미터) - 필요 시 계산해서 세팅
+    private String distanceType;       // 거리 타입: "WALKING" (도보 거리) 또는 "STRAIGHT_LINE" (직선 거리)
     private Double latitude;           // 위도
     private Double longitude;          // 경도
 
@@ -37,6 +38,7 @@ public class RestaurantDto {
             String googleMapsUri,
             List<String> photoName,
             Integer distanceMeters,
+            String distanceType,
             Double latitude,
             Double longitude
     ) {
@@ -49,6 +51,7 @@ public class RestaurantDto {
         this.googleMapsUri = googleMapsUri;
         this.photoName = photoName;
         this.distanceMeters = distanceMeters;
+        this.distanceType = distanceType;
         this.latitude = latitude;
         this.longitude = longitude;
     }
@@ -63,6 +66,7 @@ public class RestaurantDto {
             String googleMapsUri,
             List<String> photoName,
             Integer distanceMeters,
+            String distanceType,
             Double latitude,
             Double longitude
     ) {
@@ -76,6 +80,7 @@ public class RestaurantDto {
                 googleMapsUri,
                 photoName,
                 distanceMeters,
+                distanceType,
                 latitude,
                 longitude
         );
@@ -153,6 +158,14 @@ public class RestaurantDto {
 
     public void setDistanceMeters(Integer distanceMeters) {
         this.distanceMeters = distanceMeters;
+    }
+
+    public String getDistanceType() {
+        return distanceType;
+    }
+
+    public void setDistanceType(String distanceType) {
+        this.distanceType = distanceType;
     }
 
     public Double getLatitude() {
