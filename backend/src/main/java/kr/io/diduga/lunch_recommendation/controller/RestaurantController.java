@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -50,8 +52,12 @@ public class RestaurantController {
         // 3. 필터링된 결과에 대해서만 거리 계산 (Distance Matrix API 호출 최소화)
         restaurants = restaurantService.calculateDistancesForRestaurants(restaurants, latitude, longitude);
         
-        // 4. 최대 5개로 제한
-        restaurants = restaurants.stream().limit(5).collect(Collectors.toList());
+        // 4. 최대 5개로 제한 (5개 초과 시 랜덤으로 5개 선정)
+        if (restaurants.size() > 5) {
+            List<RestaurantDto> shuffled = new ArrayList<>(restaurants);
+            Collections.shuffle(shuffled);
+            restaurants = shuffled.stream().limit(5).collect(Collectors.toList());
+        }
         return ResponseEntity.ok(restaurants);
     }
 

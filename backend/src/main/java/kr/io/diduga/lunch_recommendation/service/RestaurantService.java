@@ -153,8 +153,8 @@ public class RestaurantService {
         // 한국어 응답
         requestBody.put("languageCode", "ko");
 
-        // 최대 결과 개수 (기본값: 10)
-        requestBody.put("maxResultCount", 10);
+        // 최대 결과 개수: 25개 (필터 후 랜덤 5개 선정을 위해 넉넉히 조회)
+        requestBody.put("maxResultCount", 25);
 
         // 헤더 설정
         HttpHeaders headers = new HttpHeaders();
