@@ -185,7 +185,7 @@ const handleRecommend = async () => {
         <p>Google Maps API 키가 설정되지 않았습니다.</p>
         <p>환경변수 GOOGLE_MAPS_API_KEY를 설정해주세요.</p>
       </div>
-      <BottomSeat :has-results="restaurants.length > 0" />
+      <BottomSeat :has-results="restaurants.length > 0" :restaurants="restaurants" />
     </div>
    <FilterPanel
       v-model="filters"
