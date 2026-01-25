@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue'
 import pegmanIcon from '@/assets/pegman-offscreen-2x.svg'
 import defaultThumbnail from '@/assets/restaurnt_thumbnail_default_image.png'
+import markerPinletIcon from '@/assets/marker-pinlet.svg'
 
 const props = defineProps({
   apiKey: {
@@ -316,12 +317,10 @@ const updateMarkers = () => {
         fontWeight: 'bold'
       },
       icon: {
-        path: window.google.maps.SymbolPath.CIRCLE,
-        scale: 20,
-        fillColor: markerData.color || '#FF5531',
-        fillOpacity: 1,
-        strokeColor: 'white',
-        strokeWeight: 2
+        url: markerPinletIcon,
+        scaledSize: new window.google.maps.Size(36, 48),
+        anchor: new window.google.maps.Point(18, 48),
+        labelOrigin: new window.google.maps.Point(18, 20)
       }
     })
     
