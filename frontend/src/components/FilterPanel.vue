@@ -155,9 +155,6 @@ const handleRecommend = () => {
         <span v-if="loading" class="loading-spinner"></span>
         {{ loading ? '위치 확인 중...' : '추천 받기' }}
       </button>
-
-      <!-- 안내 문구 -->
-      <p class="help-text">필터를 이용해 식당을 추천 받아보세요!</p>
     </div>
   </div>
 </template>
