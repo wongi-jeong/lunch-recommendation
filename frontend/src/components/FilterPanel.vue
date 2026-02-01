@@ -80,6 +80,25 @@ const toggleFoodType = (typeId) => {
 
 const canRecommend = computed(() => (props.modelValue.foodTypes?.length ?? 0) > 0)
 
+// 접힌 상태에서 표시할 거리 라벨 (예: "800m")
+const selectedDistanceChipLabel = computed(() => {
+  const option = distanceOptions.find(o => o.value === props.modelValue.distance)
+  return option ? option.label : ''
+})
+
+// 접힌 상태에서 표시할 음식 종류 칩 목록 (id, label)
+const selectedFoodTypeChips = computed(() => {
+  const ids = props.modelValue.foodTypes ?? []
+  return ids.map(id => {
+    const type = foodTypes.find(t => t.id === id)
+    return type ? { id, label: type.label } : null
+  }).filter(Boolean)
+})
+
+const removeFoodType = (typeId) => {
+  selectedFoodTypes.value = selectedFoodTypes.value.filter(id => id !== typeId)
+}
+
 const handleRecommend = () => {
   if (props.loading || !canRecommend.value) return
   emit('recommend')
@@ -87,11 +106,12 @@ const handleRecommend = () => {
 </script>
 
 <template>
-  <div class="filter-panel">
-    <div class="filter-header">
-      <span class="filter-title">필터</span>
-      <span class="filter-subtitle">새 필터</span>
-      <button class="icon-button" @click="isExpanded = !isExpanded">
+  <div class="filter-bar-wrapper">
+    <div class="filter-panel" :class="{ collapsed: !isExpanded }">
+      <div class="filter-header" :class="{ collapsed: !isExpanded }">
+        <span class="filter-title">필터</span>
+        <span class="filter-subtitle">새 필터</span>
+        <button class="icon-button" @click="isExpanded = !isExpanded">
         <svg v-if="isExpanded" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M7 14L12 9L17 14" stroke="#5F6368" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -157,20 +177,62 @@ const handleRecommend = () => {
       </button>
     </div>
   </div>
+
+  <!-- 접힌 상태일 때만: 선택된 필터 칩을 패널 오른쪽 바깥에 표시 -->
+  <div v-if="!isExpanded" class="filter-chips-outside">
+    <span v-if="selectedDistanceChipLabel" class="filter-chip filter-chip--distance">
+      {{ selectedDistanceChipLabel }}
+    </span>
+    <span
+      v-for="chip in selectedFoodTypeChips"
+      :key="chip.id"
+      class="filter-chip filter-chip--removable"
+    >
+      {{ chip.label }}
+      <button type="button" class="filter-chip-remove" aria-label="필터 제거" @click="removeFoodType(chip.id)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </span>
+  </div>
+  </div>
 </template>
 
 <style scoped>
-.filter-panel {
+.filter-bar-wrapper {
   position: absolute;
   top: 10px;
   left: 360px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 1000;
+}
+
+.filter-panel {
   width: 400px;
   background-color: white;
   border-radius: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  bottom: 300px;
   overflow: visible;
+  flex-shrink: 0;
+}
+
+.filter-panel:not(.collapsed) {
+  bottom: 300px;
+}
+
+.filter-panel.collapsed {
+  width: fit-content;
+  height: fit-content;
+}
+
+.filter-chips-outside {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .filter-header {
@@ -180,6 +242,53 @@ const handleRecommend = () => {
   padding: 20px 24px;
   border-bottom: 1px solid #e8eaed;
   height: 12px;
+}
+
+.filter-header.collapsed {
+  border-bottom: none;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background-color: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 20px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: #5f6368;
+  white-space: nowrap;
+}
+
+.filter-chip--distance {
+  padding: 6px 12px;
+}
+
+.filter-chip--removable {
+  padding: 6px 8px 6px 12px;
+}
+
+.filter-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #5f6368;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.filter-chip-remove:hover {
+  color: #202124;
+  background-color: rgba(0, 0, 0, 0.06);
 }
 
 .filter-title {

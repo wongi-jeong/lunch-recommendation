@@ -185,7 +185,12 @@ const handleRecommend = async () => {
         <p>Google Maps API 키가 설정되지 않았습니다.</p>
         <p>환경변수 GOOGLE_MAPS_API_KEY를 설정해주세요.</p>
       </div>
-      <BottomSeat :has-results="restaurants.length > 0" :restaurants="restaurants" />
+      <BottomSeat
+        :has-results="restaurants.length > 0"
+        :restaurants="restaurants"
+        @recommend="handleRecommend"
+        @other="handleRecommend"
+      />
     </div>
    <FilterPanel
       v-model="filters"
@@ -199,14 +204,20 @@ const handleRecommend = async () => {
 .nearby-recommendation {
   position: relative;
   width: 100%;
-  height: calc(100vh - 80px);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
 .map-container {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  height: 100%;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .map-error {

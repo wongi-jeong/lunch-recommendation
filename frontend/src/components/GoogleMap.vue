@@ -512,7 +512,8 @@ defineExpose({
 .google-map {
   width: 100%;
   height: 100%;
-  min-height: calc(100vh - 80px);
+  min-height: 0;
+  flex: 1;
 }
 
 /* 현재 위치 버튼 스타일 */

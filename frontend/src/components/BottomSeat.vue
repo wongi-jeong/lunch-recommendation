@@ -1,60 +1,78 @@
 <template>
   <div class="bottom-seat">
-    <div v-if="!hasResults" class="bottom-seat-content empty-state">
-      <p class="bottom-seat-text">필터를 이용해 식당을 추천 받아보세요!</p>
-    </div>
-    <div v-else class="bottom-seat-content restaurant-list">
-      <div class="restaurant-list-container">
-        <div
-          v-for="(restaurant, index) in restaurants"
-          :key="index"
-          class="restaurant-card"
-        >
-          <!-- 순번 배지 -->
-          <div class="restaurant-number-badge">{{ index + 1 }}</div>
-          
-          <!-- 음식 이미지 -->
-          <div class="restaurant-image-container">
-            <img
-              :src="getRestaurantImage(restaurant)"
-              :alt="restaurant.name"
-              class="restaurant-image"
-              @error="handleImageError"
-            />
-            <!-- 찜하기 아이콘 -->
-            <button class="favorite-button" @click="toggleFavorite(restaurant)">
-              <img src="@/assets/heart-icon.svg" alt="찜하기" class="heart-icon" />
-            </button>
-          </div>
-          
-          <!-- 식당 정보 -->
-          <div class="restaurant-info">
-            <div class="restaurant-header">
-              <h3 class="restaurant-name">{{ restaurant.name }}</h3>
-              <div class="restaurant-actions">
-                <button class="action-button" @click="refreshRestaurant(restaurant)">
-                  <img src="@/assets/refresh-icon.svg" alt="새로고침" class="action-icon" />
-                </button>
-                <button class="action-button" @click="openExternalLink(restaurant)">
-                  <img src="@/assets/external-link-icon.svg" alt="외부 링크" class="action-icon" />
-                </button>
+    <div class="bottom-seat-panel">
+      <!-- 상단 버튼 영역 (결과 있을 때) -->
+      <div v-if="hasResults" class="bottom-seat-actions">
+        <button type="button" class="btn-primary" @click="$emit('recommend')">
+          다시 추천
+        </button>
+        <button type="button" class="btn-secondary" @click="$emit('other')">
+          다른 식당
+        </button>
+      </div>
+
+      <!-- 빈 상태 -->
+      <div v-if="!hasResults" class="bottom-seat-content empty-state">
+        <p class="bottom-seat-text">필터를 이용해 식당을 추천 받아보세요!</p>
+      </div>
+
+      <!-- 추천 카드 목록 (Figma recommendationCards 레이아웃) -->
+      <div v-else class="bottom-seat-content recommendation-cards">
+        <div class="recommendation-cards-inner">
+          <article
+            v-for="(restaurant, index) in restaurants"
+            :key="restaurant.id ?? index"
+            class="recommendation-card"
+          >
+            <!-- 순번 배지 (이미지 좌상단) -->
+            <div class="card-number-badge">{{ index + 1 }}</div>
+
+            <!-- 음식 이미지 영역 -->
+            <div class="card-image-wrap">
+              <img
+                :src="getRestaurantImage(restaurant)"
+                :alt="restaurant.name"
+                class="card-image"
+                @error="handleImageError"
+              />
+              <!-- 찜하기 (이미지 하단 오버레이) -->
+              <button
+                type="button"
+                class="card-favorite"
+                :class="{ active: favorites.has(restaurant.id ?? restaurant.name) }"
+                @click="toggleFavorite(restaurant)"
+              >
+                <img src="@/assets/heart-icon.svg" alt="찜하기" class="card-favorite-icon" />
+              </button>
+            </div>
+
+            <!-- 식당 정보 영역 -->
+            <div class="card-info">
+              <div class="card-header">
+                <h3 class="card-name">{{ restaurant.name }}</h3>
+                <div class="card-actions">
+                  <button type="button" class="card-action-btn" @click="refreshRestaurant(restaurant)">
+                    <img src="@/assets/refresh-icon.svg" alt="새로고침" />
+                  </button>
+                  <button type="button" class="card-action-btn" @click="openExternalLink(restaurant)">
+                    <img src="@/assets/external-link-icon.svg" alt="외부 링크" />
+                  </button>
+                </div>
+              </div>
+              <p class="card-category">
+                {{ getCategoryLabel(restaurant) }} {{ getBusinessStatus(restaurant) }}
+              </p>
+              <div class="card-meta">
+                <div v-if="restaurant.rating" class="card-rating">
+                  <img src="@/assets/star-icon.svg" alt="별점" class="card-star-icon" />
+                  <span class="card-rating-value">{{ restaurant.rating.toFixed(1) }}</span>
+                </div>
+                <div v-if="restaurant.distanceMeters" class="card-distance">
+                  현 위치에서 {{ formatDistance(restaurant.distanceMeters) }}
+                </div>
               </div>
             </div>
-            
-            <div class="restaurant-category">
-              {{ getCategoryLabel(restaurant) }} {{ getBusinessStatus(restaurant) }}
-            </div>
-            
-            <div class="restaurant-details">
-              <div v-if="restaurant.rating" class="restaurant-rating">
-                <img src="@/assets/star-icon.svg" alt="별점" class="star-icon" />
-                <span class="rating-value">{{ restaurant.rating.toFixed(1) }}</span>
-              </div>
-              <div v-if="restaurant.distanceMeters" class="restaurant-distance">
-                현 위치에서 {{ formatDistance(restaurant.distanceMeters) }}
-              </div>
-            </div>
-          </div>
+          </article>
         </div>
       </div>
     </div>
@@ -65,7 +83,7 @@
 import { ref } from 'vue'
 import defaultThumbnail from '@/assets/restaurnt_thumbnail_default_image.png'
 
-const props = defineProps({
+defineProps({
   hasResults: {
     type: Boolean,
     default: false
@@ -75,6 +93,8 @@ const props = defineProps({
     default: () => []
   }
 })
+
+defineEmits(['recommend', 'other'])
 
 const favorites = ref(new Set())
 
@@ -90,16 +110,16 @@ const handleImageError = (event) => {
 }
 
 const toggleFavorite = (restaurant) => {
-  const restaurantId = restaurant.id || restaurant.name
-  if (favorites.value.has(restaurantId)) {
-    favorites.value.delete(restaurantId)
+  const id = restaurant.id ?? restaurant.name
+  if (favorites.value.has(id)) {
+    favorites.value.delete(id)
   } else {
-    favorites.value.add(restaurantId)
+    favorites.value.add(id)
   }
+  favorites.value = new Set(favorites.value)
 }
 
 const refreshRestaurant = (restaurant) => {
-  // 새로고침 로직 (필요시 구현)
   console.log('새로고침:', restaurant.name)
 }
 
@@ -110,7 +130,6 @@ const openExternalLink = (restaurant) => {
 }
 
 const getCategoryLabel = (restaurant) => {
-  // 카테고리 정보가 있다면 사용, 없으면 기본값
   if (restaurant.categories && Array.isArray(restaurant.categories) && restaurant.categories.length > 0) {
     return restaurant.categories[0]
   }
@@ -118,48 +137,101 @@ const getCategoryLabel = (restaurant) => {
 }
 
 const getBusinessStatus = (restaurant) => {
-  // 영업 상태 정보가 있다면 사용
-  if (restaurant.businessStatus) {
-    return restaurant.businessStatus
-  }
-  // 기본값으로 영업중 표시
+  if (restaurant.businessStatus) return restaurant.businessStatus
   return '영업중'
 }
 
 const formatDistance = (meters) => {
-  if (meters < 1000) {
-    return `${meters}m`
-  }
+  if (meters < 1000) return `${meters}m`
   return `${(meters / 1000).toFixed(1)}km`
 }
 </script>
 
 <style scoped>
+/* 하단 패널: 뷰포트 비율로 고정해 스크롤 없이 화면에 맞춤 */
 .bottom-seat {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  width: 100%;
-  height: 320px;
   z-index: 1000;
   pointer-events: auto;
+  max-height: 32vh;
 }
 
-.bottom-seat-content {
+.bottom-seat-panel {
   width: 100%;
   height: 100%;
-  background-color: rgba(255, 255, 255, 0.5);
+  max-height: 32vh;
+  min-height: 180px;
+  background: rgba(255, 255, 255, 0.5);
   border-radius: 24px 24px 0 0;
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
-  padding: 24px 32px;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(10px);
+  padding: 12px 0 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.bottom-seat-content.empty-state {
+/* 상단 버튼 영역 (Figma y=808) */
+.bottom-seat-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 0 24px 12px;
+  flex-shrink: 0;
+}
+
+.btn-primary {
+  min-width: 110px;
+  height: 48px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 14px;
+  background: #fff0ea;
+  color: #ff5531;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-primary:hover {
+  background: #ffe4dc;
+}
+
+.btn-secondary {
+  min-width: 109px;
+  height: 47px;
+  padding: 0 20px;
+  border: 1px solid #dadce0;
+  border-radius: 14px;
+  background: #fff;
+  color: #3c4043;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f8f9fa;
+  border-color: #bdc1c6;
+}
+
+/* 빈 상태 */
+.bottom-seat-content {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px 32px;
+}
+
+.bottom-seat-content.empty-state {
+  min-height: 100px;
   text-align: center;
 }
 
@@ -170,230 +242,299 @@ const formatDistance = (meters) => {
   color: #202124;
   margin: 0;
   line-height: 1.35;
-  letter-spacing: 0;
 }
 
-.restaurant-list {
-  padding: 24px 32px;
+/* 추천 카드 영역: 최대 3개 카드 노출, 나머지는 가로 스크롤 */
+.recommendation-cards {
+  padding: 0 0 24px;
   overflow-x: auto;
   overflow-y: hidden;
+  flex: 1;
+  min-height: 0;
+  max-width: calc(3 * 383px + 2 * 9px); /* 카드 3개 + 간격 2 */
+  margin: 0 auto;
+  justify-content: flex-start; /* 부모의 center 덮어쓰기 - 첫 카드가 보이도록 */
+  align-items: stretch;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.06);
 }
 
-.restaurant-list-container {
+.recommendation-cards::-webkit-scrollbar {
+  height: 8px;
+}
+
+.recommendation-cards::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+}
+
+.recommendation-cards::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.recommendation-cards::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.recommendation-cards-inner {
   display: flex;
-  gap: 20px;
+  gap: 9px;
+  padding: 0 24px 8px;
   height: 100%;
-  padding-bottom: 8px;
+  width: max-content;
+  box-sizing: border-box;
 }
 
-.restaurant-card {
+/* 단일 카드 (Figma: 383×167, rx 23.5, stroke #DADCE0) */
+.recommendation-card {
   position: relative;
-  min-width: 280px;
-  width: 280px;
-  height: 100%;
-  background-color: white;
-  border-radius: 16px;
+  flex-shrink: 0;
+  width: 383px;
+  min-width: 383px;
+  height: 167px;
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 23.5px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
-  flex-direction: column;
+  align-items: stretch;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: box-shadow 0.2s;
 }
 
-.restaurant-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.recommendation-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.restaurant-number-badge {
+/* 순번 배지 (Figma: 32×32, rx 6, #3C4043, 이미지 좌상단) */
+.card-number-badge {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  width: 40px;
-  height: 40px;
-  background-color: #FF5531;
-  border-radius: 50%;
+  top: 24px;
+  left: 24px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #3c4043;
+  color: #fff;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Pretendard', sans-serif;
-  font-weight: 700;
-  font-size: 18px;
-  color: white;
-  z-index: 10;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 2;
 }
 
-.restaurant-image-container {
+/* 이미지 영역 (Figma: 120×120, rx 6, 패딩 24px) */
+.card-image-wrap {
   position: relative;
-  width: 100%;
-  height: 180px;
+  flex-shrink: 0;
+  width: 120px;
+  height: 120px;
+  margin: 24px 0 0 24px;
+  border-radius: 6px;
   overflow: hidden;
-  background-color: #f5f5f5;
+  background: #f5f5f5;
 }
 
-.restaurant-image {
+.card-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.favorite-button {
+/* 찜하기 버튼 (이미지 하단 오버레이, Figma circle r=21 black 60%) */
+.card-favorite {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 36px;
-  height: 36px;
-  background-color: rgba(255, 255, 255, 0.9);
-  border-radius: 50%;
+  right: 0;
+  bottom: 0;
+  width: 42px;
+  height: 42px;
   border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 10;
-  transition: background-color 0.2s;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1;
+  transition: background 0.2s;
 }
 
-.favorite-button:hover {
-  background-color: white;
+.card-favorite:hover {
+  background: rgba(0, 0, 0, 0.75);
 }
 
-.heart-icon {
+.card-favorite.active {
+  background: rgba(255, 85, 49, 0.9);
+}
+
+.card-favorite-icon {
   width: 20px;
   height: 20px;
+  filter: brightness(0) invert(1);
 }
 
-.restaurant-info {
+.card-favorite.active .card-favorite-icon {
+  filter: none;
+}
+
+/* 식당 정보 영역 */
+.card-info {
   flex: 1;
-  padding: 16px;
+  min-width: 0;
+  padding: 24px 24px 24px 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.restaurant-header {
+.card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
 
-.restaurant-name {
+.card-name {
   font-family: 'Pretendard', sans-serif;
   font-weight: 700;
-  font-size: 18px;
-  color: #202124;
+  font-size: 16px;
+  color: #3c4043;
   margin: 0;
   flex: 1;
   line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.restaurant-actions {
+.card-actions {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
 }
 
-.action-button {
-  width: 28px;
-  height: 28px;
-  background-color: transparent;
+.card-action-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border: none;
-  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  padding: 0;
+  border-radius: 4px;
+  transition: background 0.2s;
 }
 
-.action-button:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+.card-action-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 
-.action-icon {
-  width: 16px;
-  height: 16px;
+.card-action-btn img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
-.restaurant-category {
+.card-category {
   font-family: 'Pretendard', sans-serif;
   font-weight: 500;
-  font-size: 14px;
-  color: #5F6368;
+  font-size: 13px;
+  color: #3c4043;
+  margin: 0;
 }
 
-.restaurant-details {
+.card-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-top: auto;
 }
 
-.restaurant-rating {
+.card-rating {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.star-icon {
+.card-star-icon {
   width: 16px;
   height: 16px;
+  object-fit: contain;
 }
 
-.rating-value {
+.card-rating-value {
   font-family: 'Pretendard', sans-serif;
   font-weight: 600;
   font-size: 14px;
-  color: #202124;
+  color: #3c4043;
 }
 
-.restaurant-distance {
+.card-distance {
   font-family: 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 13px;
-  color: #5F6368;
+  color: #3c4043;
 }
 
-/* 스크롤바 스타일링 */
-.restaurant-list::-webkit-scrollbar {
-  height: 8px;
-}
-
-.restaurant-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.restaurant-list::-webkit-scrollbar-thumb {
-  background: #e8eaed;
-  border-radius: 4px;
-}
-
-.restaurant-list::-webkit-scrollbar-thumb:hover {
-  background: #dadce0;
-}
-
-/* 반응형 디자인 */
+/* 반응형: 1920 레이아웃 기준, 작은 화면에서 카드 축소 */
 @media (max-width: 768px) {
-  .bottom-seat {
-    height: 280px;
+  .bottom-seat-panel {
+    min-height: 160px;
+    max-height: 32vh;
   }
 
-  .bottom-seat-content {
-    padding: 16px 20px;
+  .bottom-seat-actions {
+    padding: 0 16px 10px;
   }
 
-  .restaurant-card {
-    min-width: 240px;
-    width: 240px;
+  .btn-primary,
+  .btn-secondary {
+    min-width: 90px;
+    height: 44px;
+    font-size: 14px;
   }
 
-  .restaurant-image-container {
+  .recommendation-cards {
+    max-width: calc(3 * 320px + 2 * 9px);
+  }
+
+  .recommendation-card {
+    width: 320px;
+    min-width: 320px;
     height: 150px;
+  }
+
+  .card-image-wrap {
+    width: 100px;
+    height: 100px;
+    margin: 20px 0 0 20px;
+  }
+
+  .card-number-badge {
+    top: 20px;
+    left: 20px;
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+
+  .card-info {
+    padding: 20px 16px 20px 12px;
+  }
+
+  .card-name {
+    font-size: 14px;
   }
 
   .bottom-seat-text {
