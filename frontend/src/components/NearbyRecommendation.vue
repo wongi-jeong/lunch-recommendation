@@ -140,7 +140,9 @@ const handleRecommend = async () => {
           address: restaurant.address,
           googleMapsUri: restaurant.googleMapsUri,
           distanceMeters: restaurant.distanceMeters,
-          photoName: restaurant.photoName
+          photoName: restaurant.photoName,
+          categories: filterCategories.length > 0 ? filterCategories : ['식당'],
+          businessStatus: restaurant.businessStatus || '영업중'
         }))
       
       // 경로 업데이트 - 현재 위치에서 첫 번째 식당까지의 경로
@@ -167,6 +169,13 @@ const handleRecommend = async () => {
     isLoading.value = false
   }
 }
+
+// 카드 클릭 시 해당 가게 위치로 지도 줌 + 인포윈도우 표시
+const handleCardSelect = (restaurant) => {
+  if (googleMapRef.value?.focusOnRestaurant && restaurant?.latitude && restaurant?.longitude) {
+    googleMapRef.value.focusOnRestaurant(restaurant)
+  }
+}
 </script>
 
 <template>
@@ -180,6 +189,7 @@ const handleRecommend = async () => {
         :zoom="16"
         :markers="markers"
         :routes="routes"
+        @toggle-favorite="(restaurant) => { /* TODO: 즐겨찾기 연동 */ }"
       />
       <div v-else class="map-error">
         <p>Google Maps API 키가 설정되지 않았습니다.</p>
@@ -190,6 +200,7 @@ const handleRecommend = async () => {
         :restaurants="restaurants"
         @recommend="handleRecommend"
         @other="handleRecommend"
+        @select="handleCardSelect"
       />
     </div>
    <FilterPanel

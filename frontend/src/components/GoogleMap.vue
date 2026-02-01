@@ -3,6 +3,9 @@ import { ref, onMounted, watch } from 'vue'
 import pegmanIcon from '@/assets/pegman-offscreen-2x.svg'
 import defaultThumbnail from '@/assets/restaurnt_thumbnail_default_image.png'
 import markerPinletIcon from '@/assets/marker-pinlet.svg'
+import heartIcon from '@/assets/heart-icon.svg'
+import refreshIcon from '@/assets/refresh-icon.svg'
+import externalLinkIcon from '@/assets/external-link-icon.svg'
 
 const props = defineProps({
   apiKey: {
@@ -282,7 +285,7 @@ const updateMarkers = () => {
   // 기존 마커 및 InfoWindow 제거
   markers.forEach(marker => marker.setMap(null))
   markers = []
-  infoWindows.forEach(infoWindow => infoWindow.close())
+  infoWindows.forEach((iw) => iw && iw.close())
   infoWindows = []
 
   // 현재 위치 마커 추가 (파란색 원)
@@ -326,54 +329,103 @@ const updateMarkers = () => {
     
     // InfoWindow 생성 및 마커 클릭 이벤트 추가
     if (markerData.name) {
-      const infoContent = createInfoWindowContent(markerData, index + 1)
+      const infoContent = createInfoWindowContent(markerData, index, emit)
       const infoWindow = new window.google.maps.InfoWindow({
         content: infoContent
       })
-      
+
+      window.google.maps.event.addListener(infoWindow, 'domready', () => {
+        const container = infoWindow.getContent()
+        if (container && typeof container.querySelector === 'function') {
+          const favoriteBtn = container.querySelector('[data-action="favorite"]')
+          if (favoriteBtn) {
+            favoriteBtn.addEventListener('click', (e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              emit('toggleFavorite', markerData)
+            })
+          }
+        }
+      })
+
       marker.addListener('click', () => {
-        // 다른 InfoWindow 닫기
-        infoWindows.forEach(iw => iw.close())
-        // 현재 InfoWindow 열기
+        infoWindows.forEach((iw) => iw && iw.close())
         infoWindow.open(map, marker)
       })
-      
+
       infoWindows.push(infoWindow)
+    } else {
+      infoWindows.push(null)
     }
-    
+
     markers.push(marker)
   })
 }
 
-// InfoWindow 내용 생성 함수
-const createInfoWindowContent = (markerData, index) => {
+// InfoWindow 내용 생성 함수 (이미지와 동일한 레이아웃: 이미지+정보, 하트, 액션 아이콘)
+const createInfoWindowContent = (markerData, index, emit) => {
   const name = markerData.name || '식당 이름 없음'
-  const rating = markerData.rating ? `⭐ ${markerData.rating.toFixed(1)}` : ''
-  const address = markerData.address || '주소 정보 없음'
-  const distance = markerData.distanceMeters ? `${(markerData.distanceMeters / 1000).toFixed(1)}km` : ''
-  const mapsLink = markerData.googleMapsUri ? `<a href="${markerData.googleMapsUri}" target="_blank" style="color: #1976D2; text-decoration: none;">Google 지도에서 보기</a>` : ''
-  
-  // 썸네일 이미지: RestaurantDto photoName 배열의 0번째로 /api/restaurants/photo 호출, 없거나 실패 시 기본 이미지
+  const category = (markerData.categories && markerData.categories[0]) || '식당'
+  const mapsUri = markerData.googleMapsUri || ''
+  const directionsUri = markerData.lat && markerData.lng
+    ? `https://www.google.com/maps/dir/?api=1&destination=${markerData.lat},${markerData.lng}`
+    : mapsUri
+
   const firstPhotoName = markerData.photoName && Array.isArray(markerData.photoName) && markerData.photoName.length > 0
     ? markerData.photoName[0]
     : null
   const thumbnailSrc = firstPhotoName
     ? `/api/restaurants/photo?name=${encodeURIComponent(firstPhotoName)}`
     : defaultThumbnail
-  const thumbnail = `<img src="${thumbnailSrc}" alt="${name}" style="max-width: 250px; max-height: 250px; width: auto; height: auto; object-fit: contain; border-radius: 8px; margin-bottom: 12px; display: block;" onerror="this.src='${defaultThumbnail}'">`
-  
+
+  // escape for HTML
+  const esc = (s) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+
   return `
-    <div style="padding: 12px; min-width: 200px; max-width: 274px; font-family: 'Pretendard', sans-serif;">
-      ${thumbnail}
-      <div style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #202124;">
-        ${index}. ${name}
+    <div class="info-window-card" data-marker-idx="${index}" style="
+      display: flex; padding: 12px; width: 260px; font-family: 'Pretendard', sans-serif;
+      background: #fff; border-radius: 12px; box-sizing: border-box; gap: 12px;
+    ">
+      <div class="info-window-image-wrap" style="
+        position: relative; flex-shrink: 0; width: 88px; height: 88px; border-radius: 8px;
+        overflow: hidden; background: #f5f5f5;
+      ">
+        <img src="${thumbnailSrc}" alt="${esc(name)}" style="
+          width: 100%; height: 100%; object-fit: cover;
+        " onerror="this.src='${defaultThumbnail}'" />
+        <button type="button" class="info-window-favorite" data-action="favorite" title="찜하기" style="
+          position: absolute; right: 0; bottom: 0; width: 32px; height: 32px; border: none;
+          border-radius: 50%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+          cursor: pointer; padding: 0;
+        ">
+          <img src="${heartIcon}" alt="찜" style="width: 18px; height: 18px; filter: brightness(0) invert(1);" />
+        </button>
       </div>
-      ${rating ? `<div style="font-size: 14px; color: #5f6368; margin-bottom: 6px;">${rating}</div>` : ''}
-      <div style="font-size: 13px; color: #5f6368; margin-bottom: 8px; line-height: 1.4;">
-        ${address}
+      <div class="info-window-info" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+        <div class="info-window-header" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 6px;">
+          <h3 class="info-window-name" style="
+            font-size: 15px; font-weight: 700; color: #3c4043; margin: 0; line-height: 1.3;
+            overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+          ">${esc(name)}</h3>
+          <div class="info-window-actions" style="display: flex; gap: 4px; flex-shrink: 0;">
+            <a href="${directionsUri}" target="_blank" rel="noopener" class="info-window-action" title="길찾기" style="
+              width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+              border-radius: 4px; text-decoration: none; transition: background 0.2s;
+            ">
+              <img src="${refreshIcon}" alt="길찾기" style="width: 18px; height: 18px; object-fit: contain;" />
+            </a>
+            <a href="${mapsUri || directionsUri}" target="_blank" rel="noopener" class="info-window-action" title="Google 지도" style="
+              width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+              border-radius: 4px; text-decoration: none; transition: background 0.2s;
+            ">
+              <img src="${externalLinkIcon}" alt="외부 링크" style="width: 18px; height: 18px; object-fit: contain;" />
+            </a>
+          </div>
+        </div>
+        <p class="info-window-category" style="
+          font-size: 12px; font-weight: 500; color: #3c4043; margin: 0;
+        ">${esc(category)}</p>
       </div>
-      ${distance ? `<div style="font-size: 12px; color: #80868b; margin-bottom: 8px;">거리: ${distance}</div>` : ''}
-      ${mapsLink ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e8eaed;">${mapsLink}</div>` : ''}
     </div>
   `
 }
@@ -499,8 +551,29 @@ const getCurrentUserLocation = () => {
 }
 
 // 외부에서 호출 가능하도록 expose
+const emit = defineEmits(['refresh', 'toggleFavorite'])
+
+// 카드 클릭 시 해당 가게 위치로 줌하고 인포윈도우 표시
+const focusOnRestaurant = (restaurant) => {
+  if (!map || !restaurant?.latitude || !restaurant?.longitude) return
+  const lat = Number(restaurant.latitude)
+  const lng = Number(restaurant.longitude)
+  const idx = props.markers.findIndex(
+    (m) => Math.abs(m.lat - lat) < 1e-6 && Math.abs(m.lng - lng) < 1e-6
+  )
+  if (idx < 0) return
+  const markerObj = markers[idx]
+  const infoWindowObj = infoWindows[idx]
+  if (!markerObj || !infoWindowObj) return
+  map.panTo({ lat, lng })
+  map.setZoom(17)
+  infoWindows.forEach((iw) => iw && iw.close())
+  infoWindowObj.open(map, markerObj)
+}
+
 defineExpose({
-  getCurrentUserLocation
+  getCurrentUserLocation,
+  focusOnRestaurant
 })
 </script>
 
@@ -561,5 +634,10 @@ defineExpose({
   height: 20px;
   display: block;
   object-fit: contain;
+}
+
+/* InfoWindow 닫기 버튼 영역 제거 */
+:deep(.gm-style-iw-chr) {
+  display: none !important;
 }
 </style>

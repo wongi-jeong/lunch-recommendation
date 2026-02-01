@@ -23,6 +23,7 @@
             v-for="(restaurant, index) in restaurants"
             :key="restaurant.id ?? index"
             class="recommendation-card"
+            @click="$emit('select', restaurant)"
           >
             <!-- 순번 배지 (이미지 좌상단) -->
             <div class="card-number-badge">{{ index + 1 }}</div>
@@ -40,7 +41,7 @@
                 type="button"
                 class="card-favorite"
                 :class="{ active: favorites.has(restaurant.id ?? restaurant.name) }"
-                @click="toggleFavorite(restaurant)"
+                @click.stop="toggleFavorite(restaurant)"
               >
                 <img src="@/assets/heart-icon.svg" alt="찜하기" class="card-favorite-icon" />
               </button>
@@ -51,10 +52,10 @@
               <div class="card-header">
                 <h3 class="card-name">{{ restaurant.name }}</h3>
                 <div class="card-actions">
-                  <button type="button" class="card-action-btn" @click="refreshRestaurant(restaurant)">
+                  <button type="button" class="card-action-btn" @click.stop="refreshRestaurant(restaurant)">
                     <img src="@/assets/refresh-icon.svg" alt="새로고침" />
                   </button>
-                  <button type="button" class="card-action-btn" @click="openExternalLink(restaurant)">
+                  <button type="button" class="card-action-btn" @click.stop="openExternalLink(restaurant)">
                     <img src="@/assets/external-link-icon.svg" alt="외부 링크" />
                   </button>
                 </div>
@@ -94,7 +95,7 @@ defineProps({
   }
 })
 
-defineEmits(['recommend', 'other'])
+defineEmits(['recommend', 'other', 'select'])
 
 const favorites = ref(new Set())
 
