@@ -178,7 +178,7 @@ const handleRecommend = () => {
     </div>
   </div>
 
-  <!-- 접힌 상태일 때만: 선택된 필터 칩을 패널 오른쪽 바깥에 표시 -->
+  <!-- 접힌 상태일 때만: 선택된 필터 칩 + 추천받기 버튼(칩 배열 우측에 붙임) -->
   <div v-if="!isExpanded" class="filter-chips-outside">
     <span v-if="selectedDistanceChipLabel" class="filter-chip filter-chip--distance">
       {{ selectedDistanceChipLabel }}
@@ -195,6 +195,16 @@ const handleRecommend = () => {
         </svg>
       </button>
     </span>
+    <button
+      class="recommend-button recommend-button--collapsed"
+      :class="{ loading }"
+      :disabled="loading || !canRecommend"
+      :title="!canRecommend ? '음식 종류를 하나 이상 선택해주세요' : undefined"
+      @click="handleRecommend"
+    >
+      <span v-if="loading" class="loading-spinner"></span>
+      {{ loading ? '위치 확인 중...' : '추천 받기' }}
+    </button>
   </div>
   </div>
 </template>
@@ -440,6 +450,16 @@ const handleRecommend = () => {
   cursor: pointer;
   transition: background-color 0.2s;
   margin-bottom: 16px;
+}
+
+.recommend-button--collapsed {
+  width: auto;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 20px;
+  margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 .recommend-button:hover {
