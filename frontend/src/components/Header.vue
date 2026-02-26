@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import profileIcon from '@/assets/00391871f3d3ea22832a2b5e379bd6f3befca11d.svg'
+import profileIcon from '@/assets/profile-icon.svg'
 import logoImage from '@/assets/MECHU.svg'
 
 const activeTab = ref('내 근처 추천')

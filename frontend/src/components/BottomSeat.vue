@@ -6,8 +6,8 @@
         <button type="button" class="btn-primary" @click="$emit('recommend')">
           다시 추천
         </button>
-        <button type="button" class="btn-secondary" @click="$emit('other')">
-          다른 식당
+        <button type="button" class="btn-roulette" @click="$emit('roulette')">
+          룰렛 돌리기
         </button>
       </div>
 
@@ -95,7 +95,7 @@ defineProps({
   }
 })
 
-defineEmits(['recommend', 'other', 'select'])
+defineEmits(['recommend', 'select', 'roulette'])
 
 const favorites = ref(new Set())
 
@@ -181,6 +181,25 @@ const formatDistance = (meters) => {
   gap: 12px;
   padding: 0 24px 12px;
   flex-shrink: 0;
+}
+
+.btn-roulette {
+  min-width: 100px;
+  height: 48px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 14px;
+  background: #ff5531;
+  color: #fff;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-roulette:hover {
+  background: #e54d2b;
 }
 
 .btn-primary {

@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import GoogleMap from './GoogleMap.vue'
 import FilterPanel from './FilterPanel.vue'
 import BottomSeat from './BottomSeat.vue'
+import LunchRoulettePopup from './LunchRoulettePopup.vue'
 
 const apiKey = ref('')
 const filters = ref({
@@ -36,6 +37,9 @@ onMounted(() => {
 
 // 검색된 식당 목록
 const restaurants = ref([])
+
+// 룰렛 팝업 표시
+const rouletteOpen = ref(false)
 
 // FilterPanel foodTypes id → 백엔드 categories(한글 라벨) 매핑
 const FOOD_TYPE_TO_CATEGORY = {
@@ -199,8 +203,12 @@ const handleCardSelect = (restaurant) => {
         :has-results="restaurants.length > 0"
         :restaurants="restaurants"
         @recommend="handleRecommend"
-        @other="handleRecommend"
         @select="handleCardSelect"
+        @roulette="rouletteOpen = true"
+      />
+      <LunchRoulettePopup
+        v-model="rouletteOpen"
+        :restaurants="restaurants"
       />
     </div>
    <FilterPanel
