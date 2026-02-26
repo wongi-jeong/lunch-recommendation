@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import pegmanIcon from '@/assets/pegman-offscreen-2x.svg'
+import pegmanIcon from '@/assets/map-pegman-icon.svg'
 import defaultThumbnail from '@/assets/restaurnt_thumbnail_default_image.png'
 import markerPinletIcon from '@/assets/marker-pinlet.svg'
 import heartIcon from '@/assets/heart-icon.svg'

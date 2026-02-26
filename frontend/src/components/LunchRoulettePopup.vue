@@ -10,16 +10,20 @@
       <div class="roulette-popup">
         <h2 id="roulette-title" class="sr-only">점심 추천 룰렛</h2>
 
+        <p v-if="phase === 'result'" class="result-title">
+          [{{ winnerName }}]이<br>당첨되었습니다!
+        </p>
+
         <div class="roulette-container">
-          <!-- 룰렛 휠 SVG (viewBox 기반, 컨테이너와 함께 스케일) -->
           <svg
             class="roulette-wheel"
+            :class="{ 'wheel-spinning': isTransitioning }"
+            :style="{ transform: `rotate(${wheelRotation}deg)` }"
             viewBox="0 0 444 444"
             xmlns="http://www.w3.org/2000/svg"
             xmlns:xlink="http://www.w3.org/1999/xlink"
             aria-hidden="true"
           >
-            <!-- 세그먼트: 2~5개 모두 arc로 통일 (웨지 이미지는 #E7F6ED가 거의 흰색이라 arc 사용) -->
             <g class="wheel-segments">
               <path
                 v-for="(_, i) in displayRestaurants"
@@ -29,7 +33,6 @@
               />
             </g>
 
-            <!-- 테두리 점 + 중앙 원 -->
             <image
               :href="wheelAccessory"
               x="0"
@@ -39,7 +42,6 @@
               preserveAspectRatio="xMidYMid meet"
             />
 
-            <!-- 식당명 라벨: SVG 내부에 rect + text, 항상 수평 -->
             <g
               v-for="(restaurant, i) in segmentRestaurants"
               :key="`label-${i}`"
@@ -48,6 +50,7 @@
             >
               <rect
                 class="label-bg"
+                :class="{ 'label-bg--winner': phase === 'result' && i === winnerSegmentIndex }"
                 x="-60"
                 y="-16"
                 width="120"
@@ -57,6 +60,7 @@
               />
               <text
                 class="label-text"
+                :class="{ 'label-text--winner': phase === 'result' && i === winnerSegmentIndex }"
                 text-anchor="middle"
                 dominant-baseline="central"
                 x="0"
@@ -67,7 +71,6 @@
             </g>
           </svg>
 
-          <!-- 포인터: 휠 위쪽 중앙 -->
           <img
             src="@/assets/roulette-pointer.svg"
             alt=""
@@ -76,45 +79,68 @@
           />
         </div>
 
-        <!-- 버튼 -->
         <div class="roulette-actions">
-          <button type="button" class="btn-spin" @click="$emit('spin')">
-            돌리기
-          </button>
-          <button
-            type="button"
-            class="btn-close"
-            @click="$emit('update:modelValue', false)"
-          >
-            닫기
-          </button>
+          <template v-if="phase === 'result'">
+            <button type="button" class="btn-share" @click="handleShare">
+              결과 공유하기
+            </button>
+            <button type="button" class="btn-respin" @click="handleRespin">
+              다시 돌리기
+            </button>
+          </template>
+          <template v-else>
+            <button
+              type="button"
+              class="btn-spin"
+              :disabled="phase === 'spinning'"
+              @click="startSpin"
+            >
+              돌리기
+            </button>
+            <button
+              type="button"
+              class="btn-close"
+              :disabled="phase === 'spinning'"
+              @click="handleClose"
+            >
+              닫기
+            </button>
+          </template>
         </div>
       </div>
 
       <div
         class="roulette-backdrop"
         aria-hidden="true"
-        @click="$emit('update:modelValue', false)"
+        @click="handleClose"
       />
     </div>
   </Teleport>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import wheelAccessory from '@/assets/roulette-wheel-frame.svg'
 
 const SEGMENT_COLORS = ['#26824E', '#5BC086', '#A1D9B7', '#34A666', '#7DCE9B']
 const SEGMENT_COLORS_2 = ['#D9F0E0', '#5FCB7F']
 const SEGMENT_COLORS_3 = ['#5BC086', '#A1D9B7', '#E7F6ED']
 const SEGMENT_COLORS_4 = ['#5BC086', '#34A666', '#26824E', '#A1D9B7']
+const SPIN_DURATION = 4000
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   restaurants: { type: Array, default: () => [] }
 })
 
-defineEmits(['update:modelValue', 'spin'])
+const emit = defineEmits(['update:modelValue', 'share', 'result'])
+
+const phase = ref('idle')
+const wheelRotation = ref(0)
+const winnerSegmentIndex = ref(-1)
+const isTransitioning = ref(false)
+let cumulativeRotation = 0
+let spinTimer = null
 
 const displayRestaurants = computed(() => {
   const list = props.restaurants || []
@@ -130,6 +156,11 @@ const segmentRestaurants = computed(() => {
     return [list[1], list[2], list[0]]
   }
   return list
+})
+
+const winnerName = computed(() => {
+  if (winnerSegmentIndex.value < 0 || !segmentRestaurants.value[winnerSegmentIndex.value]) return ''
+  return segmentRestaurants.value[winnerSegmentIndex.value].name || ''
 })
 
 function getSegmentColor(index) {
@@ -168,39 +199,109 @@ function getSegmentPath(index) {
   const y2 = cy - r * Math.sin(endRad)
   const sliceAngle = Math.abs(endDeg - startDeg) || 90
   const large = sliceAngle > 180 ? 1 : 0
-  // n=2,4: 각도 증가 방향 → sweep 0(반시계). n=3,5: 각도 감소 → sweep 1(시계)
   const sweep = n === 2 || n === 4 ? 0 : 1
   return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} ${sweep} ${x2} ${y2} Z`
 }
 
-/** 라벨 위치: 세그먼트 중앙, 항상 수평(회전 없음) */
-function getLabelTransform(index) {
+function getSegmentMidDeg(index) {
   const n = segmentCount.value
-  let midDeg
-  if (n === 2) {
-    midDeg = [180, 0][index]
-  } else if (n === 4) {
-    midDeg = [135, 45, 225, 315][index]
-  } else {
-    const sliceAngle = 360 / n
-    midDeg = 90 - (index + 0.5) * sliceAngle
-  }
-  const rad = (midDeg * Math.PI) / 180
-  const r = 110
-  const cx = 222
-  const cy = 222
-  const x = cx + r * Math.cos(rad)
-  const y = cy - r * Math.sin(rad)
-  return `translate(${x}, ${y})`
+  if (n === 2) return [180, 0][index]
+  if (n === 4) return [135, 45, 225, 315][index]
+  const sliceAngle = 360 / n
+  return 90 - (index + 0.5) * sliceAngle
 }
 
-/** 긴 이름 축약 (SVG text는 ellipsis 지원 제한적) */
+function getLabelTransform(index) {
+  const midDeg = getSegmentMidDeg(index)
+  const rad = (midDeg * Math.PI) / 180
+  const labelR = 125
+  const cx = 222
+  const cy = 222
+  const x = cx + labelR * Math.cos(rad)
+  const y = cy - labelR * Math.sin(rad)
+
+  const n = segmentCount.value
+  if (n <= 2) {
+    return `translate(${x}, ${y})`
+  }
+
+  const rotation = -midDeg + 90
+
+  return `translate(${x}, ${y}) rotate(${rotation})`
+}
+
 function truncateName(name, maxLen) {
   if (!name || typeof name !== 'string') return ''
   const trimmed = name.trim()
   if (trimmed.length <= maxLen) return trimmed
   return trimmed.slice(0, maxLen) + '…'
 }
+
+async function startSpin() {
+  if (phase.value === 'spinning' || segmentCount.value < 2) return
+
+  const n = segmentCount.value
+  const winnerIdx = Math.floor(Math.random() * n)
+  winnerSegmentIndex.value = winnerIdx
+
+  const midDeg = getSegmentMidDeg(winnerIdx)
+  let targetAngle = ((midDeg - 90) % 360 + 360) % 360
+
+  const sliceAngle = 360 / n
+  targetAngle += (Math.random() - 0.5) * sliceAngle * 0.5
+  targetAngle = ((targetAngle % 360) + 360) % 360
+
+  const currentMod = ((cumulativeRotation % 360) + 360) % 360
+  let delta = targetAngle - currentMod
+  if (delta < 0) delta += 360
+
+  delta += (5 + Math.floor(Math.random() * 3)) * 360
+  cumulativeRotation += delta
+
+  phase.value = 'spinning'
+
+  isTransitioning.value = true
+  await nextTick()
+  requestAnimationFrame(() => {
+    wheelRotation.value = cumulativeRotation
+  })
+
+  if (spinTimer) clearTimeout(spinTimer)
+  spinTimer = setTimeout(() => {
+    isTransitioning.value = false
+    phase.value = 'result'
+    emit('result', segmentRestaurants.value[winnerIdx])
+  }, SPIN_DURATION + 200)
+}
+
+function handleRespin() {
+  startSpin()
+}
+
+function handleShare() {
+  if (winnerSegmentIndex.value >= 0) {
+    emit('share', segmentRestaurants.value[winnerSegmentIndex.value])
+  }
+}
+
+function handleClose() {
+  if (phase.value === 'spinning') return
+  emit('update:modelValue', false)
+}
+
+watch(() => props.modelValue, (open) => {
+  if (open) {
+    phase.value = 'idle'
+    isTransitioning.value = false
+    wheelRotation.value = 0
+    cumulativeRotation = 0
+    winnerSegmentIndex.value = -1
+    if (spinTimer) {
+      clearTimeout(spinTimer)
+      spinTimer = null
+    }
+  }
+})
 </script>
 
 <style scoped>
@@ -228,19 +329,28 @@ function truncateName(name, maxLen) {
   width: 100%;
   max-width: 480px;
   background: #ffffff;
-  border-radius: 24px;
-  box-shadow: 0 0 48px rgba(0, 0, 0, 0.15);
-  padding: 32px 24px 24px;
+  border-radius: 32px;
+  box-shadow: 0 0 48px rgba(0, 0, 0, 0.06);
+  padding: 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  border: 1px solid #dadce0;
+}
+
+.result-title {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.35;
+  color: #31373c;
+  text-align: center;
+  margin: -20px 0 28px;
 }
 
 .roulette-container {
   position: relative;
-  width: min(444px, calc(100vw - 48px));
-  aspect-ratio: 1;
+  width: min(458px, calc(100vw - 48px));
+  aspect-ratio: 458 / 476;
   flex-shrink: 0;
   margin-bottom: 24px;
 }
@@ -249,8 +359,12 @@ function truncateName(name, maxLen) {
   width: 100%;
   height: 100%;
   display: block;
+  will-change: transform;
 }
 
+.roulette-wheel.wheel-spinning {
+  transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+}
 
 .segment-label {
   pointer-events: none;
@@ -258,8 +372,13 @@ function truncateName(name, maxLen) {
 
 .label-bg {
   fill: #ffffff;
-  stroke: rgba(0, 0, 0, 0.1);
+  stroke: #1b623a;
   stroke-width: 1;
+}
+
+.label-bg.label-bg--winner {
+  fill: #ff5531;
+  stroke: none;
 }
 
 .label-text {
@@ -267,6 +386,10 @@ function truncateName(name, maxLen) {
   font-family: 'Pretendard', sans-serif;
   font-weight: 700;
   font-size: 13px;
+}
+
+.label-text.label-text--winner {
+  fill: #ffffff;
 }
 
 .roulette-pointer {
@@ -284,44 +407,90 @@ function truncateName(name, maxLen) {
   display: flex;
   gap: 12px;
   width: 100%;
-  max-width: 360px;
   justify-content: center;
 }
 
 .btn-spin {
   flex: 1;
   min-width: 0;
-  height: 48px;
+  height: 56px;
   border: none;
-  border-radius: 14px;
+  border-radius: 16px;
   background: #ff5531;
   color: #ffffff;
   font-family: 'Pretendard', sans-serif;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 20px;
   cursor: pointer;
 }
 
-.btn-spin:hover {
+.btn-spin:hover:not(:disabled) {
   background: #e54d2b;
+}
+
+.btn-spin:disabled {
+  background: #e8eaed;
+  color: #bdc1c6;
+  cursor: not-allowed;
 }
 
 .btn-close {
   flex: 0 0 auto;
-  min-width: 90px;
-  height: 48px;
+  height: 56px;
   padding: 0 20px;
   border: 1px solid #dadce0;
-  border-radius: 14px;
+  border-radius: 16px;
   background: #ffffff;
   color: #3c4043;
   font-family: 'Pretendard', sans-serif;
-  font-weight: 500;
-  font-size: 16px;
+  font-weight: 700;
+  font-size: 20px;
   cursor: pointer;
 }
 
-.btn-close:hover {
+.btn-close:hover:not(:disabled) {
+  background: #f8f9fa;
+  border-color: #bdc1c6;
+}
+
+.btn-close:disabled {
+  color: #bdc1c6;
+  cursor: not-allowed;
+}
+
+.btn-share {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  border: none;
+  border-radius: 16px;
+  background: #ff5531;
+  color: #ffffff;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.btn-share:hover {
+  background: #e54d2b;
+}
+
+.btn-respin {
+  flex: 0 0 auto;
+  height: 56px;
+  padding: 0 20px;
+  border: 1px solid #dadce0;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #3c4043;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.btn-respin:hover {
   background: #f8f9fa;
   border-color: #bdc1c6;
 }
@@ -347,6 +516,14 @@ function truncateName(name, maxLen) {
 
   .label-text {
     font-size: 11px;
+  }
+
+  .btn-spin,
+  .btn-close,
+  .btn-share,
+  .btn-respin {
+    height: 48px;
+    font-size: 16px;
   }
 }
 </style>
