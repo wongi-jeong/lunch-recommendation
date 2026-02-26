@@ -43,8 +43,8 @@ public class RestaurantController {
             return ResponseEntity.ok(List.of());
         }
 
-        // 1. Google Places API 호출 (거리 계산 없이)
-        List<RestaurantDto> restaurants = restaurantService.searchNearbyRestaurants(latitude, longitude, radius);
+        // 1. Google Places API 호출 (카테고리 기반 includedTypes로 검색)
+        List<RestaurantDto> restaurants = restaurantService.searchNearbyRestaurants(latitude, longitude, radius, filterCategories);
         
         // 2. 카테고리 필터링
         restaurants = restaurantService.filterRestaurantsByCategories(restaurants, filterCategories);

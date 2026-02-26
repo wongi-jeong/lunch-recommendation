@@ -49,29 +49,32 @@
 
             <!-- 식당 정보 영역 -->
             <div class="card-info">
-              <div class="card-header">
-                <h3 class="card-name">{{ restaurant.name }}</h3>
-                <div class="card-actions">
-                  <button type="button" class="card-action-btn" @click.stop="refreshRestaurant(restaurant)">
-                    <img src="@/assets/refresh-icon.svg" alt="새로고침" />
-                  </button>
-                  <button type="button" class="card-action-btn" @click.stop="openExternalLink(restaurant)">
-                    <img src="@/assets/external-link-icon.svg" alt="외부 링크" />
-                  </button>
-                </div>
+              <h3 class="card-name">{{ restaurant.name }}</h3>
+              <div class="card-categories">
+                <span
+                  v-for="(cat, i) in getCategories(restaurant)"
+                  :key="'cat-' + i"
+                  class="card-category"
+                >{{ cat }}</span>
+                <span class="card-category">{{ getBusinessStatus(restaurant) }}</span>
               </div>
-              <p class="card-category">
-                {{ getCategoryLabel(restaurant) }} {{ getBusinessStatus(restaurant) }}
-              </p>
-              <div class="card-meta">
-                <div v-if="restaurant.rating" class="card-rating">
-                  <img src="@/assets/star-icon.svg" alt="별점" class="card-star-icon" />
-                  <span class="card-rating-value">{{ restaurant.rating.toFixed(1) }}</span>
-                </div>
-                <div v-if="restaurant.distanceMeters" class="card-distance">
-                  현 위치에서 {{ formatDistance(restaurant.distanceMeters) }}
-                </div>
+              <div class="card-rating">
+                <img src="@/assets/star-icon.svg" alt="별점" class="card-star-icon" />
+                <span class="card-rating-value">{{ restaurant.rating ? restaurant.rating.toFixed(1) : '0.0' }}</span>
               </div>
+              <div v-if="restaurant.distanceMeters" class="card-distance">
+                현 위치에서 {{ formatDistance(restaurant.distanceMeters) }}
+              </div>
+            </div>
+
+            <!-- 액션 아이콘 (카드 우측 상단) -->
+            <div class="card-actions">
+              <button type="button" class="card-action-btn" @click.stop="refreshRestaurant(restaurant)">
+                <img src="@/assets/refresh-icon.svg" alt="새로고침" />
+              </button>
+              <button type="button" class="card-action-btn" @click.stop="openExternalLink(restaurant)">
+                <img src="@/assets/external-link-icon.svg" alt="외부 링크" />
+              </button>
             </div>
           </article>
         </div>
@@ -82,7 +85,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import defaultThumbnail from '@/assets/restaurnt_thumbnail_default_image.png'
+import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
 
 defineProps({
   hasResults: {
@@ -130,11 +133,66 @@ const openExternalLink = (restaurant) => {
   }
 }
 
-const getCategoryLabel = (restaurant) => {
-  if (restaurant.categories && Array.isArray(restaurant.categories) && restaurant.categories.length > 0) {
-    return restaurant.categories[0]
+const PLACE_TYPE_TO_CATEGORY = {
+  korean_restaurant: '한식',
+  barbecue_restaurant: '고기',
+  buffet_restaurant: '한식',
+  japanese_restaurant: '일식',
+  ramen_restaurant: '일식',
+  sushi_restaurant: '일식',
+  chinese_restaurant: '중식',
+  italian_restaurant: '양식',
+  french_restaurant: '양식',
+  american_restaurant: '양식',
+  spanish_restaurant: '양식',
+  greek_restaurant: '양식',
+  steak_house: '고기',
+  cafe: '양식',
+  vietnamese_restaurant: '아시안',
+  thai_restaurant: '아시안',
+  indian_restaurant: '아시안',
+  indonesian_restaurant: '아시안',
+  mediterranean_restaurant: '아시안',
+  turkish_restaurant: '아시안',
+  middle_eastern_restaurant: '아시안',
+  lebanese_restaurant: '아시안',
+  brazilian_restaurant: '아시안',
+  afghani_restaurant: '아시안',
+  african_restaurant: '아시안',
+  fast_food_restaurant: '패스트푸드',
+  hamburger_restaurant: '패스트푸드',
+  sandwich_shop: '패스트푸드',
+  deli: '패스트푸드',
+  cafeteria: '패스트푸드',
+  bagel_shop: '패스트푸드',
+  bar_and_grill: '고기',
+  noodle_restaurant: '면/국물',
+  vegan_restaurant: '비건',
+  vegetarian_restaurant: '비건',
+  salad_bar: '비건',
+}
+
+const getCategories = (restaurant) => {
+  const typesJson = restaurant.placeTypesJson
+  if (!typesJson) return ['식당']
+
+  try {
+    const types = typeof typesJson === 'string' ? JSON.parse(typesJson) : typesJson
+    if (!Array.isArray(types)) return ['식당']
+
+    const categories = []
+    const seen = new Set()
+    for (const type of types) {
+      const cat = PLACE_TYPE_TO_CATEGORY[type]
+      if (cat && !seen.has(cat)) {
+        seen.add(cat)
+        categories.push(cat)
+      }
+    }
+    return categories.length > 0 ? categories : ['식당']
+  } catch {
+    return ['식당']
   }
-  return '식당'
 }
 
 const getBusinessStatus = (restaurant) => {
@@ -189,8 +247,8 @@ const formatDistance = (meters) => {
   padding: 0 16px;
   border: none;
   border-radius: 14px;
-  background: #ff5531;
-  color: #fff;
+  background: #ffffff;
+  color: #000000;
   font-family: 'Pretendard', sans-serif;
   font-weight: 600;
   font-size: 15px;
@@ -199,7 +257,7 @@ const formatDistance = (meters) => {
 }
 
 .btn-roulette:hover {
-  background: #e54d2b;
+  background: #f0f0f0;
 }
 
 .btn-primary {
@@ -394,30 +452,23 @@ const formatDistance = (meters) => {
 }
 
 .card-favorite-icon {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   filter: brightness(0) invert(1);
 }
 
 .card-favorite.active .card-favorite-icon {
-  filter: none;
+  filter: brightness(0) saturate(100%) invert(43%) sepia(96%) saturate(1690%) hue-rotate(345deg) brightness(101%) contrast(101%);
 }
 
 /* 식당 정보 영역 */
 .card-info {
   flex: 1;
   min-width: 0;
-  padding: 24px 24px 24px 16px;
+  padding: 24px 8px 24px 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
 }
 
 .card-name {
@@ -426,7 +477,6 @@ const formatDistance = (meters) => {
   font-size: 16px;
   color: #3c4043;
   margin: 0;
-  flex: 1;
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -438,8 +488,10 @@ const formatDistance = (meters) => {
 
 .card-actions {
   display: flex;
-  gap: 4px;
+  flex-direction: column;
+  gap: 8px;
   flex-shrink: 0;
+  padding: 20px 16px 0 0;
 }
 
 .card-action-btn {
@@ -461,9 +513,16 @@ const formatDistance = (meters) => {
 }
 
 .card-action-btn img {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
+}
+
+.card-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .card-category {
@@ -471,14 +530,7 @@ const formatDistance = (meters) => {
   font-weight: 500;
   font-size: 13px;
   color: #3c4043;
-  margin: 0;
-}
-
-.card-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: auto;
+  line-height: 1.35;
 }
 
 .card-rating {

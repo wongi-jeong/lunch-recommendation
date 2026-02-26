@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import pegmanIcon from '@/assets/map-pegman-icon.svg'
-import defaultThumbnail from '@/assets/restaurnt_thumbnail_default_image.png'
+import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
 import markerPinletIcon from '@/assets/marker-pinlet.svg'
 import heartIcon from '@/assets/heart-icon.svg'
 import refreshIcon from '@/assets/refresh-icon.svg'
@@ -636,8 +636,17 @@ defineExpose({
   object-fit: contain;
 }
 
-/* InfoWindow 닫기 버튼 영역 제거 */
+/* InfoWindow 스타일 오버라이드 — 콘텐츠 완벽 중앙 정렬 */
 :deep(.gm-style-iw-chr) {
   display: none !important;
+}
+
+:deep(.gm-style-iw-c) {
+  padding: 0 !important;
+}
+
+:deep(.gm-style-iw-d) {
+  overflow: hidden !important;
+  padding: 0 !important;
 }
 </style>

@@ -49,8 +49,7 @@ public class RestaurantService {
         // 한식
         FILTER_CATEGORY_MAP.put("한식", Set.of(
                 "korean_restaurant",
-                "barbecue_restaurant",
-                "buffet_restaurant"
+                "barbecue_restaurant"
         ));
 
         // 일식
@@ -73,7 +72,9 @@ public class RestaurantService {
                 "spanish_restaurant",
                 "greek_restaurant",
                 "steak_house",
-                "cafe"
+                "pizza_restaurant",
+                "breakfast_restaurant",
+                "brunch_restaurant"
         ));
 
         // 아시안
@@ -87,23 +88,18 @@ public class RestaurantService {
                 "middle_eastern_restaurant",
                 "lebanese_restaurant",
                 "brazilian_restaurant",
-                "afghani_restaurant",
-                "african_restaurant"
+                "mexican_restaurant"
         ));
 
         // 패스트푸드
         FILTER_CATEGORY_MAP.put("패스트푸드", Set.of(
                 "fast_food_restaurant",
                 "hamburger_restaurant",
-                "sandwich_shop",
-                "deli",
-                "cafeteria",
-                "bagel_shop"
+                "sandwich_shop"
         ));
 
         // 고기
         FILTER_CATEGORY_MAP.put("고기", Set.of(
-                "bar_and_grill",
                 "barbecue_restaurant",
                 "steak_house"
         ));
@@ -111,28 +107,28 @@ public class RestaurantService {
         // 면/국물
         FILTER_CATEGORY_MAP.put("면/국물", Set.of(
                 "ramen_restaurant",
-                "noodle_restaurant",
                 "vietnamese_restaurant"
-                // soup-based는 Google API 타입이 아니므로 내부 태그로 처리 필요
         ));
 
         // 비건
         FILTER_CATEGORY_MAP.put("비건", Set.of(
                 "vegan_restaurant",
-                "vegetarian_restaurant",
-                "salad_bar"
+                "vegetarian_restaurant"
         ));
     }
 
     /**
      * 현재 위치 기준 주변 음식점을 조회하고, RestaurantDto 리스트로 변환합니다.
+     * filterCategories가 주어지면 해당 카테고리에 매핑된 구체적 타입으로 검색하여
+     * Google API 단계에서부터 관련 식당만 반환받습니다.
      *
-     * @param latitude  위도
-     * @param longitude 경도
-     * @param radius    검색 반경(미터)
+     * @param latitude         위도
+     * @param longitude        경도
+     * @param radius           검색 반경(미터)
+     * @param filterCategories 필터링할 카테고리 리스트 (예: ["한식", "일식"])
      * @return 주변 식당 정보 DTO 리스트
      */
-    public List<RestaurantDto> searchNearbyRestaurants(double latitude, double longitude, int radius) {
+    public List<RestaurantDto> searchNearbyRestaurants(double latitude, double longitude, int radius, List<String> filterCategories) {
         // 요청 본문 구성
         Map<String, Object> requestBody = new HashMap<>();
 
@@ -147,8 +143,22 @@ public class RestaurantService {
         locationRestriction.put("circle", circle);
         requestBody.put("locationRestriction", locationRestriction);
 
-        // 식당 타입 지정
-        requestBody.put("includedTypes", new String[]{"restaurant"});
+        // 선택된 카테고리에 매핑된 Google Places 타입을 includedTypes로 직접 전달
+        Set<String> includedTypes = new LinkedHashSet<>();
+        if (filterCategories != null) {
+            for (String category : filterCategories) {
+                Set<String> types = FILTER_CATEGORY_MAP.get(category);
+                if (types != null) {
+                    includedTypes.addAll(types);
+                }
+            }
+        }
+
+        if (includedTypes.isEmpty()) {
+            requestBody.put("includedTypes", new String[]{"restaurant"});
+        } else {
+            requestBody.put("includedTypes", includedTypes.toArray(new String[0]));
+        }
 
         // 한국어 응답
         requestBody.put("languageCode", "ko");
