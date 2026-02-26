@@ -4,7 +4,7 @@
       <!-- 상단 버튼 영역 (결과 있을 때) -->
       <div v-if="hasResults" class="bottom-seat-actions">
         <button type="button" class="btn-primary" @click="$emit('recommend')">
-          다시 추천
+          투표 만들기
         </button>
         <button type="button" class="btn-roulette" @click="$emit('roulette')">
           룰렛 돌리기
@@ -147,7 +147,8 @@ const PLACE_TYPE_TO_CATEGORY = {
   spanish_restaurant: '양식',
   greek_restaurant: '양식',
   steak_house: '고기',
-  cafe: '양식',
+  cafe: '카페',
+  coffee_shop: '카페',
   vietnamese_restaurant: '아시안',
   thai_restaurant: '아시안',
   indian_restaurant: '아시안',
@@ -196,8 +197,9 @@ const getCategories = (restaurant) => {
 }
 
 const getBusinessStatus = (restaurant) => {
-  if (restaurant.businessStatus) return restaurant.businessStatus
-  return '영업중'
+  if (restaurant.openNow === true) return '영업중'
+  if (restaurant.openNow === false) return '영업 종료'
+  return '정보 없음'
 }
 
 const formatDistance = (meters) => {

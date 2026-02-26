@@ -34,7 +34,8 @@ const foodTypes = [
   { id: 'asian', label: '아시안' },
   { id: 'fastfood', label: '패스트푸드' },
   { id: 'meat', label: '고기' },
-  { id: 'noodle', label: '면/국물' }
+  { id: 'noodle', label: '면/국물' },
+  { id: 'cafe', label: '카페' }
 ]
 
 const allSelected = computed(() => {

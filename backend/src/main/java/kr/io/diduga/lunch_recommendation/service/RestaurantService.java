@@ -115,6 +115,12 @@ public class RestaurantService {
                 "vegan_restaurant",
                 "vegetarian_restaurant"
         ));
+
+        // 카페
+        FILTER_CATEGORY_MAP.put("카페", Set.of(
+                "cafe",
+                "coffee_shop"
+        ));
     }
 
     /**
@@ -306,6 +312,14 @@ public class RestaurantService {
 
                 String googleMapsUri = placeNode.path("googleMapsUri").asText(null);
 
+                // 현재 영업 여부 파싱
+                Boolean openNow = null;
+                JsonNode openingHoursNode = placeNode.path("currentOpeningHours");
+                if (!openingHoursNode.isMissingNode() && !openingHoursNode.isNull()
+                        && openingHoursNode.has("openNow")) {
+                    openNow = openingHoursNode.get("openNow").asBoolean();
+                }
+
                 // 위치 정보 (위도, 경도) 파싱
                 Double latitude = null;
                 Double longitude = null;
@@ -331,7 +345,8 @@ public class RestaurantService {
                         null,
                         null, // distanceType은 나중에 설정
                         latitude,
-                        longitude
+                        longitude,
+                        openNow
                 );
 
                 result.add(dto);

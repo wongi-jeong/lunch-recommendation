@@ -23,6 +23,7 @@ public class RestaurantDto {
     private String distanceType;       // 거리 타입: "WALKING" (도보 거리) 또는 "STRAIGHT_LINE" (직선 거리)
     private Double latitude;           // 위도
     private Double longitude;          // 경도
+    private Boolean openNow;           // 현재 영업 여부 (Google Places currentOpeningHours.openNow)
 
     public RestaurantDto() {
         // Jackson 역직렬화를 위한 기본 생성자
@@ -40,7 +41,8 @@ public class RestaurantDto {
             Integer distanceMeters,
             String distanceType,
             Double latitude,
-            Double longitude
+            Double longitude,
+            Boolean openNow
     ) {
         this.name = name;
         this.rating = rating;
@@ -54,6 +56,7 @@ public class RestaurantDto {
         this.distanceType = distanceType;
         this.latitude = latitude;
         this.longitude = longitude;
+        this.openNow = openNow;
     }
 
     public static RestaurantDto of(
@@ -68,7 +71,8 @@ public class RestaurantDto {
             Integer distanceMeters,
             String distanceType,
             Double latitude,
-            Double longitude
+            Double longitude,
+            Boolean openNow
     ) {
         return new RestaurantDto(
                 name,
@@ -82,7 +86,8 @@ public class RestaurantDto {
                 distanceMeters,
                 distanceType,
                 latitude,
-                longitude
+                longitude,
+                openNow
         );
     }
 
@@ -182,6 +187,14 @@ public class RestaurantDto {
 
     public void setLongitude(Double longitude) {
         this.longitude = longitude;
+    }
+
+    public Boolean getOpenNow() {
+        return openNow;
+    }
+
+    public void setOpenNow(Boolean openNow) {
+        this.openNow = openNow;
     }
 }
 

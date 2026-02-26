@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import pegmanIcon from '@/assets/map-pegman-icon.svg'
+import currentLocationIcon from '@/assets/current-location-icon.svg'
 import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
 import markerPinletIcon from '@/assets/marker-pinlet.svg'
 import heartIcon from '@/assets/heart-icon.svg'
@@ -132,7 +132,7 @@ const createCurrentLocationButton = () => {
     button.title = '현재 위치로 이동'
     
     const iconImg = document.createElement('img')
-    iconImg.src = pegmanIcon
+    iconImg.src = currentLocationIcon
     iconImg.alt = '현재 위치'
     iconImg.className = 'current-location-icon'
     button.appendChild(iconImg)
@@ -178,7 +178,7 @@ const createCurrentLocationButton = () => {
   
   // SVG 아이콘을 img 태그로 추가
   const iconImg = document.createElement('img')
-  iconImg.src = pegmanIcon
+  iconImg.src = currentLocationIcon
   iconImg.alt = '현재 위치'
   iconImg.className = 'current-location-icon'
   button.appendChild(iconImg)

@@ -51,7 +51,8 @@ const FOOD_TYPE_TO_CATEGORY = {
   asian: '아시안',
   fastfood: '패스트푸드',
   meat: '고기',
-  noodle: '면/국물'
+  noodle: '면/국물',
+  cafe: '카페'
 }
 
 // 추천 받기 버튼 클릭 핸들러
@@ -146,7 +147,7 @@ const handleRecommend = async () => {
           distanceMeters: restaurant.distanceMeters,
           photoName: restaurant.photoName,
           categories: filterCategories.length > 0 ? filterCategories : ['식당'],
-          businessStatus: restaurant.businessStatus || '영업중'
+          openNow: restaurant.openNow
         }))
       
       // 경로 업데이트 - 현재 위치에서 첫 번째 식당까지의 경로
