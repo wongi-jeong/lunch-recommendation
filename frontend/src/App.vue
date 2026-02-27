@@ -1,12 +1,20 @@
 <script setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import Header from './components/Header.vue'
-import NearbyRecommendation from './components/NearbyRecommendation.vue'
+import { RouterView } from 'vue-router'
+
+const route = useRoute()
+const showHeader = computed(() => {
+  const authRoutes = ['/login', '/signup']
+  return !authRoutes.includes(route.path)
+})
 </script>
 
 <template>
   <div class="app">
-    <Header />
-    <NearbyRecommendation />
+    <Header v-if="showHeader" />
+    <RouterView />
   </div>
 </template>
 

@@ -168,7 +168,13 @@ const resetRefreshing = () => {
   refreshingOldId.value = null
 }
 
-defineExpose({ resetRefreshing })
+const startRefreshing = (restaurant, index) => {
+  if (refreshingIndex.value >= 0) return
+  refreshingIndex.value = index
+  refreshingOldId.value = restaurant?.googlePlaceId ?? restaurant?.name ?? null
+}
+
+defineExpose({ resetRefreshing, startRefreshing })
 
 const openExternalLink = (restaurant) => {
   if (restaurant.googleMapsUri) {

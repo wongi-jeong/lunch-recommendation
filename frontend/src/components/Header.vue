@@ -1,18 +1,54 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import profileIcon from '@/assets/profile-icon.svg'
 import logoImage from '@/assets/logo-mechu.svg'
 
-const activeTab = ref('내 근처 추천')
+const router = useRouter()
+const route = useRoute()
+
+// TODO: 회원 테이블/API 연동 후 세션 체크 로직 구현
+// 현재는 sessionStorage에 authToken 존재 여부로 로그인 상태 판단
+const isLoggedIn = ref(false)
+
+const checkAuthSession = () => {
+  isLoggedIn.value = !!sessionStorage.getItem('authToken')
+}
+
+onMounted(() => {
+  checkAuthSession()
+})
+
+const handleAuthButtonClick = () => {
+  if (isLoggedIn.value) {
+    sessionStorage.removeItem('authToken')
+    isLoggedIn.value = false
+    // TODO: API 연동 시 로그아웃 요청 추가
+  } else {
+    router.push('/login')
+  }
+}
 
 const tabs = [
-  { id: 'ai', label: 'AI 추천' },
-  { id: 'near', label: '내 근처 추천' },
-  { id: 'favorites', label: '즐겨찾기' }
+  { id: 'ai', path: '/ai', label: 'AI 추천' },
+  { id: 'near', path: '/nearby', label: '내 근처 추천' },
+  { id: 'favorites', path: '/', label: '즐겨찾기' }
 ]
 
-const setActiveTab = (tabId) => {
-  activeTab.value = tabs.find(tab => tab.id === tabId)?.label || '내 근처 추천'
+const visibleTabs = computed(() =>
+  isLoggedIn.value ? tabs : tabs.filter((t) => t.id !== 'favorites')
+)
+
+const activeTab = computed(() => {
+  if (route.path === '/nearby') return '내 근처 추천'
+  if (route.path === '/ai') return 'AI 추천'
+  if (route.path === '/' && isLoggedIn.value) return '즐겨찾기'
+  if (route.path === '/') return null
+  return tabs.find((t) => route.path.startsWith(t.path))?.label ?? null
+})
+
+const setActiveTab = (tab) => {
+  if (tab.path) router.push(tab.path)
 }
 </script>
 
@@ -20,16 +56,16 @@ const setActiveTab = (tabId) => {
   <header class="header">
     <div class="header-container">
       <div class="header-left">
-        <div class="logo">
+        <button class="logo" type="button" aria-label="메인 페이지로 이동" @click="router.push('/')">
           <img :src="logoImage" alt="MECHU" class="logo-image" />
-        </div>
+        </button>
         <nav class="tabs">
           <div
-            v-for="tab in tabs"
+            v-for="tab in visibleTabs"
             :key="tab.id"
             class="tab"
             :class="{ active: activeTab === tab.label }"
-            @click="setActiveTab(tab.id)"
+            @click="setActiveTab(tab)"
           >
             <div class="tab-content">
               <p
@@ -50,8 +86,8 @@ const setActiveTab = (tabId) => {
           <img :src="profileIcon" alt="프로필" class="profile-icon" />
           <p class="user-button-text">마이</p>
         </button>
-        <button class="user-button">
-          <p class="user-button-text">로그아웃</p>
+        <button class="user-button" @click="handleAuthButtonClick">
+          <p class="user-button-text">{{ isLoggedIn ? '로그아웃' : '로그인' }}</p>
         </button>
       </div>
     </div>
@@ -91,6 +127,14 @@ const setActiveTab = (tabId) => {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.logo:hover {
+  opacity: 0.85;
 }
 
 .logo-image {

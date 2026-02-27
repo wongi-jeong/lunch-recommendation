@@ -136,21 +136,26 @@ const handleRecommend = async () => {
     
     // 마커 업데이트 - 검색된 식당들을 지도에 표시
     if (data.length > 0) {
-      markers.value = data
-        .filter(restaurant => restaurant.latitude && restaurant.longitude)
-        .map((restaurant, index) => ({
-          lat: restaurant.latitude,
-          lng: restaurant.longitude,
-          color: index === 0 ? '#34A853' : '#FF5531', // 첫 번째 식당은 녹색으로 표시
-          name: restaurant.name,
-          rating: restaurant.rating,
-          address: restaurant.address,
-          googleMapsUri: restaurant.googleMapsUri,
-          distanceMeters: restaurant.distanceMeters,
-          photoName: restaurant.photoName,
-          categories: filterCategories.length > 0 ? filterCategories : ['식당'],
-          openNow: restaurant.openNow
-        }))
+      const filtered = []
+      data.forEach((restaurant, i) => {
+        if (restaurant.latitude && restaurant.longitude) {
+          filtered.push({
+            lat: restaurant.latitude,
+            lng: restaurant.longitude,
+            color: filtered.length === 0 ? '#34A853' : '#FF5531',
+            name: restaurant.name,
+            rating: restaurant.rating,
+            address: restaurant.address,
+            googleMapsUri: restaurant.googleMapsUri,
+            distanceMeters: restaurant.distanceMeters,
+            photoName: restaurant.photoName,
+            categories: filterCategories.length > 0 ? filterCategories : ['식당'],
+            openNow: restaurant.openNow,
+            restaurantIndex: i
+          })
+        }
+      })
+      markers.value = filtered
       
       // 경로 업데이트 - 현재 위치에서 첫 번째 식당까지의 경로
       if (data[0].latitude && data[0].longitude) {
@@ -181,6 +186,9 @@ const handleRecommend = async () => {
 const handleRefresh = async (index) => {
   if (!googleMapRef.value) return
 
+  const restaurant = restaurants.value[index]
+  bottomSeatRef.value?.startRefreshing?.(restaurant, index)
+
   try {
     const userLocation = await googleMapRef.value.getCurrentUserLocation()
     const radius = filters.value.distance
@@ -210,21 +218,26 @@ const handleRefresh = async (index) => {
     if (data.length > 0) {
       restaurants.value[index] = data[0]
 
-      markers.value = restaurants.value
-        .filter(r => r.latitude && r.longitude)
-        .map((r, i) => ({
-          lat: r.latitude,
-          lng: r.longitude,
-          color: i === 0 ? '#34A853' : '#FF5531',
-          name: r.name,
-          rating: r.rating,
-          address: r.address,
-          googleMapsUri: r.googleMapsUri,
-          distanceMeters: r.distanceMeters,
-          photoName: r.photoName,
-          categories: filterCategories.length > 0 ? filterCategories : ['식당'],
-          openNow: r.openNow
-        }))
+      const filtered = []
+      restaurants.value.forEach((r, i) => {
+        if (r.latitude && r.longitude) {
+          filtered.push({
+            lat: r.latitude,
+            lng: r.longitude,
+            color: filtered.length === 0 ? '#34A853' : '#FF5531',
+            name: r.name,
+            rating: r.rating,
+            address: r.address,
+            googleMapsUri: r.googleMapsUri,
+            distanceMeters: r.distanceMeters,
+            photoName: r.photoName,
+            categories: filterCategories.length > 0 ? filterCategories : ['식당'],
+            openNow: r.openNow,
+            restaurantIndex: i
+          })
+        }
+      })
+      markers.value = filtered
     } else {
       bottomSeatRef.value?.resetRefreshing()
       alert('추가로 추천할 수 있는 식당이 없습니다.')
@@ -256,6 +269,7 @@ const handleCardSelect = (restaurant) => {
         :markers="markers"
         :routes="routes"
         @toggle-favorite="(restaurant) => { /* TODO: 즐겨찾기 연동 */ }"
+        @refresh="handleRefresh"
       />
       <div v-else class="map-error">
         <p>Google Maps API 키가 설정되지 않았습니다.</p>

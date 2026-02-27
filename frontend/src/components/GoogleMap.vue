@@ -38,6 +38,10 @@ let directionsService = null
 let directionsRenderer = null
 let currentLocationButton = null
 
+// 새로고침 중인 마커 인덱스 (인포윈도우 애니메이션용)
+let infoWindowRefreshingIndex = -1
+let lastOpenInfoWindowIndex = -1
+
 onMounted(() => {
   if (window.google && window.google.maps) {
     initMap()
@@ -282,6 +286,9 @@ const moveToCurrentLocation = () => {
 }
 
 const updateMarkers = () => {
+  const wasRefreshingIndex = infoWindowRefreshingIndex
+  if (infoWindowRefreshingIndex >= 0) infoWindowRefreshingIndex = -1
+
   // 기존 마커 및 InfoWindow 제거
   markers.forEach(marker => marker.setMap(null))
   markers = []
@@ -329,7 +336,8 @@ const updateMarkers = () => {
     
     // InfoWindow 생성 및 마커 클릭 이벤트 추가
     if (markerData.name) {
-      const infoContent = createInfoWindowContent(markerData, index, emit)
+      const isSwapped = index === infoWindowRefreshingIndex
+      const infoContent = createInfoWindowContent(markerData, index, { isRefreshing: false, isSwapped })
       const infoWindow = new window.google.maps.InfoWindow({
         content: infoContent
       })
@@ -350,6 +358,7 @@ const updateMarkers = () => {
 
       marker.addListener('click', () => {
         infoWindows.forEach((iw) => iw && iw.close())
+        lastOpenInfoWindowIndex = index
         infoWindow.open(map, marker)
       })
 
@@ -360,10 +369,21 @@ const updateMarkers = () => {
 
     markers.push(marker)
   })
+
+  // 새로고침 완료 후 해당 인덱스의 인포윈도우 재오픈
+  if (wasRefreshingIndex >= 0) {
+    const markerIdx = props.markers.findIndex((m) => (m.restaurantIndex ?? -1) === wasRefreshingIndex)
+    const idx = markerIdx >= 0 ? markerIdx : wasRefreshingIndex
+    if (idx >= 0 && markers[idx] && infoWindows[idx]) {
+      lastOpenInfoWindowIndex = idx
+      infoWindows[idx].open(map, markers[idx])
+    }
+  }
 }
 
 // InfoWindow 내용 생성 함수 (이미지와 동일한 레이아웃: 이미지+정보, 하트, 액션 아이콘)
-const createInfoWindowContent = (markerData, index, emit) => {
+const createInfoWindowContent = (markerData, index, opts = {}) => {
+  const { isRefreshing = false, isSwapped = false } = opts
   const name = markerData.name || '식당 이름 없음'
   const category = (markerData.categories && markerData.categories[0]) || '식당'
   const mapsUri = markerData.googleMapsUri || ''
@@ -381,12 +401,30 @@ const createInfoWindowContent = (markerData, index, emit) => {
   // escape for HTML
   const esc = (s) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
 
+  const refreshBtnDisabled = isRefreshing ? ' disabled' : ''
+  const cardClasses = ['info-window-card']
+  if (isRefreshing) cardClasses.push('iw-refreshing')
+  if (isSwapped) cardClasses.push('iw-swapped')
+
   return `
-    <div class="info-window-card" data-marker-idx="${index}" style="
-      display: flex; padding: 12px; width: 260px; font-family: 'Pretendard', sans-serif;
+    <style>
+      .iw-refreshing { pointer-events: none; }
+      .iw-refreshing .iw-image-wrap, .iw-refreshing .iw-info { opacity: 0.45; filter: grayscale(0.4); transition: opacity 0.3s, filter 0.3s; }
+      .iw-shimmer { position: absolute; inset: 0; z-index: 3; border-radius: inherit; overflow: hidden;
+        background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%);
+        background-size: 200% 100%; animation: iw-shimmer 1.4s ease-in-out infinite; }
+      @keyframes iw-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+      .iw-refresh-spin { animation: iw-spin 0.8s linear infinite; }
+      @keyframes iw-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      .iw-swapped { animation: iw-swap-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+      @keyframes iw-swap-in { 0% { opacity: 0; transform: translateY(18px) scale(0.96); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+    </style>
+    <div class="${cardClasses.join(' ')}" data-marker-idx="${index}" style="
+      position: relative; display: flex; padding: 12px; width: 260px; font-family: 'Pretendard', sans-serif;
       background: #fff; border-radius: 12px; box-sizing: border-box; gap: 12px;
     ">
-      <div class="info-window-image-wrap" style="
+      ${isRefreshing ? '<div class="iw-shimmer"></div>' : ''}
+      <div class="iw-image-wrap" style="
         position: relative; flex-shrink: 0; width: 88px; height: 88px; border-radius: 8px;
         overflow: hidden; background: #f5f5f5;
       ">
@@ -401,19 +439,19 @@ const createInfoWindowContent = (markerData, index, emit) => {
           <img src="${heartIcon}" alt="찜" style="width: 18px; height: 18px; filter: brightness(0) invert(1);" />
         </button>
       </div>
-      <div class="info-window-info" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+      <div class="iw-info" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
         <div class="info-window-header" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 6px;">
           <h3 class="info-window-name" style="
             font-size: 15px; font-weight: 700; color: #3c4043; margin: 0; line-height: 1.3;
             overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
           ">${esc(name)}</h3>
           <div class="info-window-actions" style="display: flex; gap: 4px; flex-shrink: 0;">
-            <a href="${directionsUri}" target="_blank" rel="noopener" class="info-window-action" title="길찾기" style="
+            <button type="button" class="info-window-action" data-action="refresh" title="새로고침"${refreshBtnDisabled} style="
               width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
-              border-radius: 4px; text-decoration: none; transition: background 0.2s;
-            ">
-              <img src="${refreshIcon}" alt="길찾기" style="width: 18px; height: 18px; object-fit: contain;" />
-            </a>
+              border: none; border-radius: 4px; background: transparent; cursor: pointer; padding: 0; transition: background 0.2s;
+            " onclick="event.preventDefault();event.stopPropagation();(window.__lunchMapRefresh||function(){})(${markerData.restaurantIndex ?? index})">
+              <img src="${refreshIcon}" alt="새로고침" class="${isRefreshing ? 'iw-refresh-spin' : ''}" style="width: 18px; height: 18px; object-fit: contain;" />
+            </button>
             <a href="${mapsUri || directionsUri}" target="_blank" rel="noopener" class="info-window-action" title="Google 지도" style="
               width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
               border-radius: 4px; text-decoration: none; transition: background 0.2s;
@@ -552,6 +590,21 @@ const getCurrentUserLocation = () => {
 
 // 외부에서 호출 가능하도록 expose
 const emit = defineEmits(['refresh', 'toggleFavorite'])
+
+// InfoWindow 내 인라인 onclick에서 호출 (다른 document 컨텍스트 대응)
+if (typeof window !== 'undefined') {
+  window.__lunchMapRefresh = (idx) => {
+    infoWindowRefreshingIndex = idx
+    const markerIdx = props.markers.findIndex((m) => (m.restaurantIndex ?? -1) === idx)
+    const actualIdx = markerIdx >= 0 ? markerIdx : idx
+    const iw = infoWindows[actualIdx]
+    const markerData = props.markers[actualIdx]
+    if (iw && markerData) {
+      iw.setContent(createInfoWindowContent(markerData, actualIdx, { isRefreshing: true }))
+    }
+    emit('refresh', idx)
+  }
+}
 
 // 카드 클릭 시 해당 가게 위치로 줌하고 인포윈도우 표시
 const focusOnRestaurant = (restaurant) => {
