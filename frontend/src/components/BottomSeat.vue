@@ -23,8 +23,15 @@
             v-for="(restaurant, index) in restaurants"
             :key="restaurant.id ?? index"
             class="recommendation-card"
+            :class="{
+              'is-refreshing': refreshingIndex === index,
+              'is-swapped': swappedIndex === index
+            }"
             @click="$emit('select', restaurant)"
           >
+            <!-- shimmer 오버레이 (로딩 중) -->
+            <div v-if="refreshingIndex === index" class="card-shimmer-overlay" />
+
             <!-- 순번 배지 (이미지 좌상단) -->
             <div class="card-number-badge">{{ index + 1 }}</div>
 
@@ -69,8 +76,13 @@
 
             <!-- 액션 아이콘 (카드 우측 상단) -->
             <div class="card-actions">
-              <button type="button" class="card-action-btn" @click.stop="refreshRestaurant(restaurant)">
-                <img src="@/assets/refresh-icon.svg" alt="새로고침" />
+              <button
+                type="button"
+                class="card-action-btn"
+                :class="{ 'is-spinning': refreshingIndex === index }"
+                @click.stop="refreshRestaurant(restaurant, index)"
+              >
+                <img src="@/assets/refresh-icon.svg" alt="새로고침" class="refresh-icon" />
               </button>
               <button type="button" class="card-action-btn" @click.stop="openExternalLink(restaurant)">
                 <img src="@/assets/external-link-icon.svg" alt="외부 링크" />
@@ -84,10 +96,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
 
-defineProps({
+const props = defineProps({
   hasResults: {
     type: Boolean,
     default: false
@@ -98,9 +110,30 @@ defineProps({
   }
 })
 
-defineEmits(['recommend', 'select', 'roulette'])
+const emit = defineEmits(['recommend', 'select', 'roulette', 'refresh'])
 
 const favorites = ref(new Set())
+const refreshingIndex = ref(-1)
+const swappedIndex = ref(-1)
+// deep watch에서는 newVal/oldVal이 동일 참조이므로, 새로고침 시작 시점의 식별자를 저장해 비교
+const refreshingOldId = ref(null)
+
+watch(() => props.restaurants, (restaurants) => {
+  if (refreshingIndex.value < 0 || refreshingOldId.value == null) return
+  const idx = refreshingIndex.value
+  if (!restaurants || idx >= restaurants.length) return
+
+  const current = restaurants[idx]
+  const currentId = current?.googlePlaceId ?? current?.name
+  if (currentId && currentId !== refreshingOldId.value) {
+    refreshingIndex.value = -1
+    refreshingOldId.value = null
+    swappedIndex.value = idx
+    nextTick(() => {
+      setTimeout(() => { swappedIndex.value = -1 }, 500)
+    })
+  }
+}, { deep: true })
 
 const getRestaurantImage = (restaurant) => {
   if (restaurant.photoName && Array.isArray(restaurant.photoName) && restaurant.photoName.length > 0) {
@@ -123,9 +156,19 @@ const toggleFavorite = (restaurant) => {
   favorites.value = new Set(favorites.value)
 }
 
-const refreshRestaurant = (restaurant) => {
-  console.log('새로고침:', restaurant.name)
+const refreshRestaurant = (restaurant, index) => {
+  if (refreshingIndex.value >= 0) return
+  refreshingIndex.value = index
+  refreshingOldId.value = restaurant?.googlePlaceId ?? restaurant?.name ?? null
+  emit('refresh', index)
 }
+
+const resetRefreshing = () => {
+  refreshingIndex.value = -1
+  refreshingOldId.value = null
+}
+
+defineExpose({ resetRefreshing })
 
 const openExternalLink = (restaurant) => {
   if (restaurant.googleMapsUri) {
@@ -559,6 +602,67 @@ const formatDistance = (meters) => {
   font-weight: 400;
   font-size: 13px;
   color: #3c4043;
+}
+
+/* ── 새로고침 애니메이션 ── */
+
+/* 1) 리프레시 아이콘 스핀 */
+.card-action-btn.is-spinning .refresh-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* 2) 로딩 중 카드: 컨텐츠 살짝 desaturate + shimmer 오버레이 */
+.recommendation-card.is-refreshing {
+  pointer-events: none;
+}
+
+.recommendation-card.is-refreshing .card-image-wrap,
+.recommendation-card.is-refreshing .card-info {
+  opacity: 0.45;
+  filter: grayscale(0.4);
+  transition: opacity 0.3s, filter 0.3s;
+}
+
+.card-shimmer-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  overflow: hidden;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 3) 새 카드 등장: 슬라이드-인 + 페이드 + 약한 스케일 */
+.recommendation-card.is-swapped {
+  animation: cardSwapIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cardSwapIn {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* 반응형: 1920 레이아웃 기준, 작은 화면에서 카드 축소 */

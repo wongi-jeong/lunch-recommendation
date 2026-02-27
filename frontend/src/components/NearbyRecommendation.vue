@@ -26,6 +26,8 @@ const googleMapRef = ref(null)
 // 로딩 상태
 const isLoading = ref(false)
 
+const bottomSeatRef = ref(null)
+
 onMounted(() => {
   apiKey.value = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.GOOGLE_MAPS_API_KEY || ''
   
@@ -175,6 +177,65 @@ const handleRecommend = async () => {
   }
 }
 
+// 카드 새로고침: 해당 인덱스의 식당을 현재 필터 조건에 맞는 새 식당으로 교체
+const handleRefresh = async (index) => {
+  if (!googleMapRef.value) return
+
+  try {
+    const userLocation = await googleMapRef.value.getCurrentUserLocation()
+    const radius = filters.value.distance
+    const filterCategories = (filters.value.foodTypes || [])
+      .map(id => FOOD_TYPE_TO_CATEGORY[id])
+      .filter(Boolean)
+
+    if (!filterCategories.length) return
+
+    const excludePlaceIds = restaurants.value
+      .map(r => r.googlePlaceId)
+      .filter(Boolean)
+
+    const params = new URLSearchParams({
+      lat: String(userLocation.lat),
+      lng: String(userLocation.lng),
+      radius: String(radius),
+      maxResults: '1'
+    })
+    filterCategories.forEach(cat => params.append('categories', cat))
+    excludePlaceIds.forEach(id => params.append('excludePlaceIds', id))
+
+    const response = await fetch(`/api/restaurants/nearby?${params.toString()}`)
+    if (!response.ok) throw new Error(`API 요청 실패: ${response.status}`)
+
+    const data = await response.json()
+    if (data.length > 0) {
+      restaurants.value[index] = data[0]
+
+      markers.value = restaurants.value
+        .filter(r => r.latitude && r.longitude)
+        .map((r, i) => ({
+          lat: r.latitude,
+          lng: r.longitude,
+          color: i === 0 ? '#34A853' : '#FF5531',
+          name: r.name,
+          rating: r.rating,
+          address: r.address,
+          googleMapsUri: r.googleMapsUri,
+          distanceMeters: r.distanceMeters,
+          photoName: r.photoName,
+          categories: filterCategories.length > 0 ? filterCategories : ['식당'],
+          openNow: r.openNow
+        }))
+    } else {
+      bottomSeatRef.value?.resetRefreshing()
+      alert('추가로 추천할 수 있는 식당이 없습니다.')
+    }
+  } catch (error) {
+    bottomSeatRef.value?.resetRefreshing()
+    console.error('식당 새로고침 실패:', error.message)
+    alert('새로고침에 실패했습니다: ' + error.message)
+  }
+}
+
 // 카드 클릭 시 해당 가게 위치로 지도 줌 + 인포윈도우 표시
 const handleCardSelect = (restaurant) => {
   if (googleMapRef.value?.focusOnRestaurant && restaurant?.latitude && restaurant?.longitude) {
@@ -201,11 +262,13 @@ const handleCardSelect = (restaurant) => {
         <p>환경변수 GOOGLE_MAPS_API_KEY를 설정해주세요.</p>
       </div>
       <BottomSeat
+        ref="bottomSeatRef"
         :has-results="restaurants.length > 0"
         :restaurants="restaurants"
         @recommend="handleRecommend"
         @select="handleCardSelect"
         @roulette="rouletteOpen = true"
+        @refresh="handleRefresh"
       />
       <LunchRoulettePopup
         v-model="rouletteOpen"
