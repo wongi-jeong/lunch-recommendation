@@ -63,7 +63,16 @@ public class RestaurantController {
         // 4. 필터링된 결과에 대해서만 거리 계산 (Distance Matrix API 호출 최소화)
         restaurants = restaurantService.calculateDistancesForRestaurants(restaurants, latitude, longitude);
         
-        // 5. 최대 개수로 제한 (초과 시 랜덤 선정)
+        // 5. 사용자 지정 반경(radius) 초과 식당 제외
+        // - Google Places API의 radius는 직선 거리 기준, 카드에는 도보 거리 표시
+        // - 도보 거리는 직선보다 길 수 있어 800m 설정 시 1km+ 식당이 노출될 수 있음
+        // - 계산된 거리(distanceMeters)가 radius를 초과하면 제외
+        final int radiusFilter = radius;
+        restaurants = restaurants.stream()
+                .filter(r -> r.getDistanceMeters() != null && r.getDistanceMeters() <= radiusFilter)
+                .collect(Collectors.toList());
+        
+        // 6. 최대 개수로 제한 (초과 시 랜덤 선정)
         if (restaurants.size() > maxResults) {
             List<RestaurantDto> shuffled = new ArrayList<>(restaurants);
             Collections.shuffle(shuffled);

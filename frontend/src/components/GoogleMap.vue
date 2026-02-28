@@ -370,11 +370,17 @@ const updateMarkers = () => {
     markers.push(marker)
   })
 
-  // 새로고침 완료 후 해당 인덱스의 인포윈도우 재오픈
+  // 새로고침 완료 후 해당 인덱스의 인포윈도우 재오픈 및 줌인
   if (wasRefreshingIndex >= 0) {
     const markerIdx = props.markers.findIndex((m) => (m.restaurantIndex ?? -1) === wasRefreshingIndex)
     const idx = markerIdx >= 0 ? markerIdx : wasRefreshingIndex
     if (idx >= 0 && markers[idx] && infoWindows[idx]) {
+      // 새로고침된 식당 위치로 지도 줌인
+      const pos = markers[idx].getPosition()
+      if (pos && map) {
+        map.panTo(pos)
+        map.setZoom(17)
+      }
       lastOpenInfoWindowIndex = idx
       infoWindows[idx].open(map, markers[idx])
     }
