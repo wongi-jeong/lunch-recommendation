@@ -1,12 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainPage from '@/components/MainPage.vue'
-import NearbyRecommendation from '@/components/NearbyRecommendation.vue'
+import NearbyRecommendation from '@/components/nearby/NearbyRecommendation.vue'
 import AiRecommendation from '@/components/AiRecommendation.vue'
 import SignUpPage from '@/components/SignUpPage.vue'
 import LoginPage from '@/components/LoginPage.vue'
 import RouletteSharePage from '@/components/RouletteSharePage.vue'
-import VoteCreatePage from '@/components/VoteCreatePage.vue'
-import VotePage from '@/components/VotePage.vue'
+import VoteCreatePage from '@/components/vote/VoteCreatePage.vue'
+import VotePage from '@/components/vote/VotePage.vue'
 
 const routes = [
   {

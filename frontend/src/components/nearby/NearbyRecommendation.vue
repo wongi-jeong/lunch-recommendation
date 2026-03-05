@@ -1,9 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import GoogleMap from './GoogleMap.vue'
+import GoogleMap from '../GoogleMap.vue'
 import FilterPanel from './FilterPanel.vue'
-import BottomSeat from './BottomSeat.vue'
+import BottomSeat from '../BottomSeat.vue'
 import LunchRoulettePopup from './LunchRoulettePopup.vue'
 
 const router = useRouter()
