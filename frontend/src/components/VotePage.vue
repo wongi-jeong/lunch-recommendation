@@ -247,12 +247,18 @@ const shareModalTitle = computed(() => {
   if (shareModalMode.value === 'location') {
     return `${winnerOption.value?.name || '식당'} 위치 공유`
   }
+  if (shareModalMode.value === 'vote') {
+    return '투표 링크 공유'
+  }
   return `${voteData.value?.title || '투표'} 결과 공유`
 })
 
 const shareText = computed(() => {
   if (shareModalMode.value === 'location') {
     return winnerOption.value ? `"${winnerOption.value.name}" 위치를 확인해보세요!` : '식당 위치를 확인해보세요!'
+  }
+  if (shareModalMode.value === 'vote') {
+    return `"${voteData.value?.title || '점심 투표'}"에 참여해보세요!`
   }
   if (!winnerOption.value) return '투표 결과를 확인해보세요.'
   return `오늘 점심은 "${winnerOption.value.name}"! 투표 결과를 확인해보세요.`
@@ -311,7 +317,11 @@ const copyShareLink = async () => {
     <template v-else-if="voteData">
       <!-- 결과 카드: 투표 종료 후 1등 식당 -->
       <div v-if="voteEnded && winnerOption" class="result-card">
-        <div class="result-card-title">오늘 점심은 여기!</div>
+        <div class="result-card-header">
+          <span class="result-badge">TOP PICK</span>
+          <div class="result-card-title">{{ getPercentage(winnerIndex) }}%의 선택, 오늘의 점심</div>
+          <div class="result-card-subtitle">{{ totalVoters }}명이 투표에 참여했어요</div>
+        </div>
         <div class="result-card-content">
           <div class="result-card-img">
             <img :src="getPhotoUrl(winnerOption)" :alt="winnerOption.name" class="result-card-photo" @error="handleImageError" />
@@ -344,7 +354,7 @@ const copyShareLink = async () => {
         <!-- 타이틀 영역 -->
         <div class="vote-title-section">
           <div class="vote-title-timer">
-            <h2 class="vote-title">{{ voteData.title }} 진행 중</h2>
+            <h2 class="vote-title">{{ voteData.title }} {{ voteEnded ? '종료' : '진행 중' }}</h2>
             <div v-if="hasTimer && !voteEnded" class="timer-row">
               <span>종료까지</span>
               <span>{{ timerDisplay.hours }}시간</span>
@@ -419,7 +429,25 @@ const copyShareLink = async () => {
                 <div class="vote-item-text">
                   <span class="vote-item-number">{{ index + 1 }}</span>
                   <span class="vote-item-name">{{ option.name }}</span>
-                  <span class="vote-item-category">{{ (option.categories || [])[0] || '식당' }}</span>
+                  <span class="vote-item-separator">|</span>
+                  <span class="vote-item-category">
+                    {{ (option.categories || [])[0] || '식당' }}
+                  </span>
+                  <span class="vote-item-dot">·</span>
+                  <span class="vote-item-rating">
+                    <img src="@/assets/star-icon.svg" alt="별점" class="vote-item-star-icon" />
+                    {{ option.rating != null ? option.rating.toFixed(1) : '0.0' }}
+                  </span>
+                  <span class="vote-item-dot">·</span>
+                  <span
+                    class="vote-item-status"
+                    :class="{
+                      'status-open': option.openNow === true,
+                      'status-closed': option.openNow === false
+                    }"
+                  >
+                    {{ getBusinessStatus(option) }}
+                  </span>
                   <span class="vote-item-pct">{{ getPercentage(index) }}%</span>
                 </div>
                 <div class="vote-progress-bar" :class="{ 'progress-selected': selectedIndex === index || (voteEnded && index === winnerIndex) }">
@@ -445,22 +473,20 @@ const copyShareLink = async () => {
 
         <!-- 버튼 영역 -->
         <div class="vote-action-section">
-          <button
-            v-if="!hasVoted && !voteEnded"
-            class="vote-submit-btn"
-            :class="{ 'vote-submit-enabled': canVote }"
-            :disabled="voteEnded"
-            @click="submitVote"
-          >투표하기</button>
-
-          <div v-if="!voteEnded" class="vote-share-field">
-            <svg class="share-link-icon" width="32" height="32" viewBox="0 0 32 32" fill="none"><mask id="link_mask_b" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="32" height="32" fill="#D9D9D9"/></mask><g mask="url(#link_mask_b)"><path d="M14.6667 22.6667H9.33333C7.48889 22.6667 5.91667 22.0167 4.61667 20.7167C3.31667 19.4167 2.66667 17.8444 2.66667 16C2.66667 14.1556 3.31667 12.5833 4.61667 11.2833C5.91667 9.98333 7.48889 9.33333 9.33333 9.33333H14.6667V12H9.33333C8.22222 12 7.27778 12.3889 6.5 13.1667C5.72222 13.9444 5.33333 14.8889 5.33333 16C5.33333 17.1111 5.72222 18.0556 6.5 18.8333C7.27778 19.6111 8.22222 20 9.33333 20H14.6667V22.6667ZM10.6667 17.3333V14.6667H21.3333V17.3333H10.6667ZM17.3333 22.6667V20H22.6667C23.7778 20 24.7222 19.6111 25.5 18.8333C26.2778 18.0556 26.6667 17.1111 26.6667 16C26.6667 14.8889 26.2778 13.9444 25.5 13.1667C24.7222 12.3889 23.7778 12 22.6667 12H17.3333V9.33333H22.6667C24.5111 9.33333 26.0833 9.98333 27.3833 11.2833C28.6833 12.5833 29.3333 14.1556 29.3333 16C29.3333 17.8444 28.6833 19.4167 27.3833 20.7167C26.0833 22.0167 24.5111 22.6667 22.6667 22.6667H17.3333Z" fill="#5F6368"/></g></svg>
-            <span class="share-link-text">{{ shareLink }}</span>
-            <button class="share-copy-btn" @click.stop="copyShareLink">공유하기</button>
+          <div v-if="!voteEnded" class="vote-action-row">
+            <button
+              v-if="!hasVoted"
+              class="vote-submit-btn"
+              :class="{ 'vote-submit-enabled': canVote }"
+              @click="submitVote"
+            >투표하기</button>
+            <button class="vote-share-outline-btn" @click="openShareModal('vote')">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><mask id="link_btn_mask" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask><g mask="url(#link_btn_mask)"><path d="M9.16667 14.1667H5.83333C4.68056 14.1667 3.69792 13.7604 2.88542 12.9479C2.07292 12.1354 1.66667 11.1528 1.66667 10C1.66667 8.84722 2.07292 7.86458 2.88542 7.05208C3.69792 6.23958 4.68056 5.83333 5.83333 5.83333H9.16667V7.5H5.83333C5.13889 7.5 4.54861 7.74306 4.0625 8.22917C3.57639 8.71528 3.33333 9.30556 3.33333 10C3.33333 10.6944 3.57639 11.2847 4.0625 11.7708C4.54861 12.2569 5.13889 12.5 5.83333 12.5H9.16667V14.1667ZM6.66667 10.8333V9.16667H13.3333V10.8333H6.66667ZM10.8333 14.1667V12.5H14.1667C14.8611 12.5 15.4514 12.2569 15.9375 11.7708C16.4236 11.2847 16.6667 10.6944 16.6667 10C16.6667 9.30556 16.4236 8.71528 15.9375 8.22917C15.4514 7.74306 14.8611 7.5 14.1667 7.5H10.8333V5.83333H14.1667C15.3194 5.83333 16.3021 6.23958 17.1146 7.05208C17.9271 7.86458 18.3333 8.84722 18.3333 10C18.3333 11.1528 17.9271 12.1354 17.1146 12.9479C16.3021 13.7604 15.3194 14.1667 14.1667 14.1667H10.8333Z" fill="#5f6368"/></g></svg>
+              링크 공유
+            </button>
           </div>
 
           <div v-if="voteEnded" class="vote-ended-actions">
-            <button class="vote-ended-btn vote-ended-btn-secondary" @click="goHome">돌아가기</button>
             <button v-if="googleMapsLink" class="vote-ended-btn vote-ended-btn-outlined" @click="openShareModal('location')">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><mask id="loc_btn_mask" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask><g mask="url(#loc_btn_mask)"><path d="M10 10C10.4583 10 10.8507 9.83681 11.1771 9.51042C11.5035 9.18403 11.6667 8.79167 11.6667 8.33333C11.6667 7.875 11.5035 7.48264 11.1771 7.15625C10.8507 6.82986 10.4583 6.66667 10 6.66667C9.54167 6.66667 9.14931 6.82986 8.82292 7.15625C8.49653 7.48264 8.33333 7.875 8.33333 8.33333C8.33333 8.79167 8.49653 9.18403 8.82292 9.51042C9.14931 9.83681 9.54167 10 10 10ZM10 18.3333C7.76389 16.4306 6.09375 14.6632 4.98958 13.0312C3.88542 11.3993 3.33333 9.88889 3.33333 8.5C3.33333 6.41667 4.00347 4.75694 5.34375 3.52083C6.68403 2.28472 8.23611 1.66667 10 1.66667C11.7639 1.66667 13.316 2.28472 14.6563 3.52083C15.9965 4.75694 16.6667 6.41667 16.6667 8.5C16.6667 9.88889 16.1146 11.3993 15.0104 13.0312C13.9062 14.6632 12.2361 16.4306 10 18.3333Z" fill="#ff5531"/></g></svg>
               위치 공유
@@ -559,23 +585,53 @@ const copyShareLink = async () => {
   box-sizing: border-box;
 }
 
+.result-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 8px 28px;
+}
+
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 4px 14px;
+  background: #FF5531;
+  color: #fff;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  border-radius: 20px;
+  line-height: 1.4;
+}
+
 .result-card-title {
   font-family: 'Pretendard', sans-serif;
-  font-weight: 700;
-  font-size: 24px;
+  font-weight: 800;
+  font-size: 28px;
   line-height: 1.35;
-  color: #31373c;
-  padding: 0 8px 24px;
+  color: #202124;
+  margin-top: 4px;
+}
+
+.result-card-subtitle {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.4;
+  color: #80868b;
 }
 
 .result-card-content {
   display: flex;
-  gap: 24px;
-  align-items: flex-start;
+  gap: 32px;
+  align-items: stretch;
 }
 
 .result-card-img {
-  width: 383px;
+  width: 276px;
   height: 276px;
   background-color: #dadce0;
   border-radius: 32px;
@@ -593,28 +649,29 @@ const copyShareLink = async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  justify-content: center;
+  gap: 24px;
   min-width: 0;
 }
 
 .result-store-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .result-store-name {
   font-family: 'Pretendard', sans-serif;
-  font-weight: 600;
-  font-size: 20px;
-  line-height: 1.35;
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.3;
   color: #202124;
 }
 
 .result-store-category {
   font-family: 'Pretendard', sans-serif;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 20px;
   line-height: 1.35;
   color: #3c4043;
 }
@@ -622,23 +679,24 @@ const copyShareLink = async () => {
 .result-store-details {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 16px;
+  gap: 16px;
 }
 
 .result-detail-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   font-family: 'Pretendard', sans-serif;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 1.35;
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.5;
   color: #5f6368;
 }
 
 .result-detail-row svg {
   flex-shrink: 0;
+  width: 24px;
+  height: 24px;
 }
 
 .result-link-section {
@@ -884,8 +942,8 @@ const copyShareLink = async () => {
 }
 
 .vote-item-img {
-  width: 108px;
-  height: 68px;
+  width: 80px;
+  height: 80px;
   background-color: #dadce0;
   border-radius: 12px;
   margin-left: 15px;
@@ -925,9 +983,37 @@ const copyShareLink = async () => {
   color: #5f6368;
 }
 
+.vote-item-separator {
+  font-size: 14px;
+  color: #9aa0a6;
+}
+
+.vote-item-dot {
+  font-size: 14px;
+  color: #9aa0a6;
+}
+
 .vote-item-name {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.vote-item-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #5f6368;
+}
+
+.vote-item-status {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 .vote-item-pct {
@@ -936,6 +1022,12 @@ const copyShareLink = async () => {
   font-size: 14px;
   line-height: 1.35;
   color: #5f6368;
+}
+
+.vote-item-star-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
 }
 
 .vote-item-selected .vote-item-number,
@@ -1005,15 +1097,21 @@ const copyShareLink = async () => {
   box-sizing: border-box;
 }
 
-.vote-submit-btn {
+.vote-action-row {
+  display: flex;
+  gap: 12px;
   width: 100%;
-  height: 72px;
+}
+
+.vote-submit-btn {
+  flex: 1;
+  height: 64px;
   border: none;
   border-radius: 20px;
   background-color: #e8eaed;
   font-family: 'Pretendard', sans-serif;
   font-weight: 700;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.35;
   color: #bdc1c6;
   cursor: not-allowed;
@@ -1028,6 +1126,37 @@ const copyShareLink = async () => {
 
 .vote-submit-btn.vote-submit-enabled:hover {
   background-color: #e6442a;
+}
+
+.vote-share-outline-btn {
+  height: 64px;
+  padding: 0 28px;
+  border-radius: 20px;
+  background-color: #fff;
+  border: 1.5px solid #dadce0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #5f6368;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.vote-share-outline-btn:hover {
+  border-color: #ff5531;
+  color: #ff5531;
+  background-color: #fff5f3;
+}
+
+.vote-share-outline-btn:hover svg path {
+  fill: #ff5531;
 }
 
 /* ===== 공유 링크 ===== */

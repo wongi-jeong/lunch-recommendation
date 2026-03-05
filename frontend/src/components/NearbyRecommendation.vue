@@ -341,6 +341,7 @@ const handleShare = (payload) => {
         ref="bottomSeatRef"
         :has-results="restaurants.length > 0"
         :restaurants="restaurants"
+        :active-categories="(filters.foodTypes || []).map(id => FOOD_TYPE_TO_CATEGORY[id]).filter(Boolean)"
         @recommend="handleRecommend"
         @select="handleCardSelect"
         @roulette="rouletteOpen = true"

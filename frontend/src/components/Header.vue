@@ -39,12 +39,15 @@ const visibleTabs = computed(() =>
   isLoggedIn.value ? tabs : tabs.filter((t) => t.id !== 'favorites')
 )
 
-const activeTab = computed(() => {
-  if (route.path === '/nearby') return '내 근처 추천'
-  if (route.path === '/ai') return 'AI 추천'
-  if (route.path === '/' && isLoggedIn.value) return '즐겨찾기'
-  if (route.path === '/') return null
-  return tabs.find((t) => route.path.startsWith(t.path))?.label ?? null
+const activeTabId = computed(() => {
+  const path = route.path
+
+  if (path === '/nearby') return 'near'
+  if (path === '/ai') return 'ai'
+  if (path === '/' && isLoggedIn.value) return 'favorites'
+  if (path === '/') return null
+
+  return tabs.find((t) => t.path !== '/' && path.startsWith(t.path))?.id ?? null
 })
 
 const setActiveTab = (tab) => {
@@ -59,18 +62,19 @@ const setActiveTab = (tab) => {
         <button class="logo" type="button" aria-label="메인 페이지로 이동" @click="router.push('/')">
           <img :src="logoImage" alt="MECHU" class="logo-image" />
         </button>
-        <nav class="tabs">
+        <nav class="tabs" aria-label="페이지 이동">
           <div
             v-for="tab in visibleTabs"
             :key="tab.id"
             class="tab"
-            :class="{ active: activeTab === tab.label }"
+            :class="{ active: activeTabId === tab.id }"
+            :aria-current="activeTabId === tab.id ? 'page' : undefined"
             @click="setActiveTab(tab)"
           >
             <div class="tab-content">
               <p
                 class="tab-text"
-                :class="{ 'tab-text-active': activeTab === tab.label }"
+                :class="{ 'tab-text-active': activeTabId === tab.id }"
               >
                 {{ tab.label }}
               </p>
@@ -79,14 +83,14 @@ const setActiveTab = (tab) => {
         </nav>
       </div>
       <div class="header-right">
-        <button class="user-button">
+        <button class="user-button" type="button">
           <p class="user-button-text">알림</p>
         </button>
-        <button class="user-button">
+        <button class="user-button" type="button">
           <img :src="profileIcon" alt="프로필" class="profile-icon" />
           <p class="user-button-text">마이</p>
         </button>
-        <button class="user-button" @click="handleAuthButtonClick">
+        <button class="user-button" type="button" @click="handleAuthButtonClick">
           <p class="user-button-text">{{ isLoggedIn ? '로그아웃' : '로그인' }}</p>
         </button>
       </div>
@@ -99,11 +103,11 @@ const setActiveTab = (tab) => {
   display: flex;
   height: 80px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   overflow: hidden;
-  padding: 0 380px;
   width: 100%;
-  background-color: white;
+  background-color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
 .header-container {
@@ -111,7 +115,10 @@ const setActiveTab = (tab) => {
   height: 100%;
   align-items: center;
   justify-content: space-between;
-  width: 1200px;
+  width: 100%;
+  max-width: 1200px;
+  padding: 0 32px;
+  box-sizing: border-box;
 }
 
 .header-left {
@@ -234,5 +241,42 @@ const setActiveTab = (tab) => {
   color: #5f6368;
   white-space: pre;
   margin: 0;
+}
+
+@media (max-width: 1024px) {
+  .header {
+    height: 72px;
+  }
+
+  .header-container {
+    padding: 0 20px;
+  }
+
+  .tab-text {
+    font-size: 18px;
+  }
+
+  .user-button-text {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    height: 64px;
+  }
+
+  .header-left {
+    gap: 20px;
+  }
+
+  .tabs {
+    gap: 16px;
+  }
+
+  .tab {
+    height: 44px;
+    padding: 0 12px;
+  }
 }
 </style>

@@ -70,6 +70,12 @@ const handleImageError = (event) => {
   event.target.src = defaultThumbnail
 }
 
+const getBusinessStatus = (restaurant) => {
+  if (restaurant.openNow === true) return '영업중'
+  if (restaurant.openNow === false) return '영업 종료'
+  return '정보 없음'
+}
+
 const handleCreate = () => {
   if (!canCreate.value) return
 
@@ -171,11 +177,27 @@ const goBack = () => {
               />
             </div>
             <div class="option-text">
-              <span class="option-number">{{ index + 1 }}</span>
               <div class="option-info">
                 <span class="option-store-name">{{ restaurant.name }}</span>
                 <span class="option-separator">|</span>
-                <span class="option-category">{{ (restaurant.categories || [])[0] || '식당' }}</span>
+                <span class="option-category">
+                  {{ (restaurant.categories || [])[0] || '식당' }}
+                </span>
+                <span class="option-dot">·</span>
+                <span class="option-rating">
+                  <img src="@/assets/star-icon.svg" alt="별점" class="option-star-icon" />
+                  {{ restaurant.rating ? restaurant.rating.toFixed(1) : '0.0' }}
+                </span>
+                <span class="option-dot">·</span>
+                <span
+                  class="option-status"
+                  :class="{
+                    'status-open': restaurant.openNow === true,
+                    'status-closed': restaurant.openNow === false
+                  }"
+                >
+                  {{ getBusinessStatus(restaurant) }}
+                </span>
               </div>
             </div>
             <div class="option-check">
@@ -255,18 +277,23 @@ const goBack = () => {
             </button>
           </div>
           <div class="popup-content">
-            <p class="popup-title">투표가 생성되었습니다!</p>
-            <div class="popup-link-field">
-              <svg class="link-icon" width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M13.5 17.5a5.5 5.5 0 008 0l3-3a5.5 5.5 0 00-7.78-7.78l-1.72 1.71" stroke="#5F6368" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M18.5 14.5a5.5 5.5 0 00-8 0l-3 3a5.5 5.5 0 007.78 7.78l1.71-1.71" stroke="#5F6368" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <div class="popup-icon">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="16" cy="16" r="16" fill="#FF5531" />
+                <path d="M10 16.5l3.2 3.2L22 11" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
-              <span class="link-text">{{ shareLink }}</span>
-              <button class="share-btn" @click="copyShareLink">공유하기</button>
             </div>
+            <p class="popup-title">투표가 생성되었습니다!</p>
+            <p class="popup-description">팀원들이 바로 참여할 수 있도록 아래 버튼으로 링크를 공유해 보세요.</p>
           </div>
           <div class="popup-action">
-            <button class="go-vote-btn" @click="goToVote">투표하러가기</button>
+            <div class="popup-action-row">
+              <button class="go-vote-btn" @click="goToVote">투표하러가기</button>
+              <button class="popup-share-outline-btn" @click="copyShareLink">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M9.16667 14.1667H5.83333C4.68056 14.1667 3.69792 13.7604 2.88542 12.9479C2.07292 12.1354 1.66667 11.1528 1.66667 10C1.66667 8.84722 2.07292 7.86458 2.88542 7.05208C3.69792 6.23958 4.68056 5.83333 5.83333 5.83333H9.16667V7.5H5.83333C5.13889 7.5 4.54861 7.74306 4.0625 8.22917C3.57639 8.71528 3.33333 9.30556 3.33333 10C3.33333 10.6944 3.57639 11.2847 4.0625 11.7708C4.54861 12.2569 5.13889 12.5 5.83333 12.5H9.16667V14.1667ZM6.66667 10.8333V9.16667H13.3333V10.8333H6.66667ZM10.8333 14.1667V12.5H14.1667C14.8611 12.5 15.4514 12.2569 15.9375 11.7708C16.4236 11.2847 16.6667 10.6944 16.6667 10C16.6667 9.30556 16.4236 8.71528 15.9375 8.22917C15.4514 7.74306 14.8611 7.5 14.1667 7.5H10.8333V5.83333H14.1667C15.3194 5.83333 16.3021 6.23958 17.1146 7.05208C17.9271 7.86458 18.3333 8.84722 18.3333 10C18.3333 11.1528 17.9271 12.1354 17.1146 12.9479C16.3021 13.7604 15.3194 14.1667 14.1667 14.1667H10.8333Z" fill="#5f6368"/></svg>
+                링크 공유
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -412,7 +439,7 @@ const goBack = () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: 24px;
+  margin-left: 32px;
   flex: 1;
   min-width: 0;
 }
@@ -429,14 +456,14 @@ const goBack = () => {
 .option-info {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
 }
 
 .option-store-name {
   font-family: 'Pretendard', sans-serif;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 20px;
   line-height: 1.35;
   color: #5f6368;
   white-space: nowrap;
@@ -460,6 +487,42 @@ const goBack = () => {
   color: #5f6368;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.option-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #5f6368;
+  font-weight: 600;
+}
+
+.option-status {
+  font-family: 'Pretendard', sans-serif;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.option-dot {
+  color: #9aa0a6;
+}
+
+.status-open {
+  color: #34a853;
+}
+
+.status-closed {
+  color: #ea4335;
+}
+
+.option-star-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .option-check {
@@ -675,7 +738,17 @@ const goBack = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+}
+
+.popup-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  background-color: #fff5f3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .popup-title {
@@ -688,68 +761,32 @@ const goBack = () => {
   margin: 0;
 }
 
-.popup-link-field {
-  width: 100%;
-  height: 56px;
-  border: 1px solid #dadce0;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 12px;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-.link-icon {
-  flex-shrink: 0;
-}
-
-.link-text {
+.popup-description {
   font-family: 'Pretendard', sans-serif;
-  font-weight: 500;
-  font-size: 16px;
-  line-height: 1.35;
-  color: #797f86;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-  min-width: 0;
-}
-
-.share-btn {
-  flex-shrink: 0;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid #dadce0;
-  border-radius: 12px;
-  background-color: #fff;
-  font-family: 'Pretendard', sans-serif;
-  font-weight: 700;
+  font-weight: 400;
   font-size: 14px;
-  line-height: 1.35;
-  color: #3c4043;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  white-space: nowrap;
-}
-
-.share-btn:hover {
-  background-color: #f5f5f5;
+  line-height: 1.5;
+  color: #5f6368;
+  margin: 0;
+  text-align: center;
 }
 
 .popup-action {
   width: 100%;
-  padding: 0 80px;
   box-sizing: border-box;
 }
 
-.go-vote-btn {
+.popup-action-row {
+  display: flex;
+  gap: 12px;
   width: 100%;
-  height: 56px;
+}
+
+.go-vote-btn {
+  flex: 1;
+  height: 64px;
   border: none;
-  border-radius: 16px;
+  border-radius: 20px;
   background-color: #ff5531;
   font-family: 'Pretendard', sans-serif;
   font-weight: 700;
@@ -757,11 +794,42 @@ const goBack = () => {
   line-height: 1.35;
   color: #fff;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.15s;
 }
 
 .go-vote-btn:hover {
   background-color: #e6442a;
+}
+
+.popup-share-outline-btn {
+  height: 64px;
+  padding: 0 28px;
+  border-radius: 20px;
+  background-color: #fff;
+  border: 1.5px solid #dadce0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #5f6368;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.popup-share-outline-btn:hover {
+  border-color: #ff5531;
+  color: #ff5531;
+  background-color: #fff5f3;
+}
+
+.popup-share-outline-btn:hover svg path {
+  fill: #ff5531;
 }
 
 /* 팝업 트랜지션 */

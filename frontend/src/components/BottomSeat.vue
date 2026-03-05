@@ -59,11 +59,17 @@
               <h3 class="card-name">{{ restaurant.name }}</h3>
               <div class="card-categories">
                 <span
-                  v-for="(cat, i) in getCategories(restaurant)"
+                  v-for="(cat, i) in getDisplayCategories(restaurant)"
                   :key="'cat-' + i"
                   class="card-category"
-                >{{ cat }}</span>
-                <span class="card-category">{{ getBusinessStatus(restaurant) }}</span>
+                  :class="{ 'card-category--primary': isActiveCategory(cat) }"
+                >
+                  {{ cat }}
+                  <span v-if="i < getDisplayCategories(restaurant).length - 1" class="card-category-separator">|</span>
+                </span>
+              </div>
+              <div class="card-business-status">
+                {{ getBusinessStatus(restaurant) }}
               </div>
               <div class="card-rating">
                 <img src="@/assets/star-icon.svg" alt="별점" class="card-star-icon" />
@@ -105,6 +111,14 @@ const props = defineProps({
     default: false
   },
   restaurants: {
+    type: Array,
+    default: () => []
+  },
+  /**
+   * 현재 선택된 필터 기준 카테고리 리스트 (예: ["한식", "고기"])
+   * 없으면 단순히 식당 카테고리만 보여준다.
+   */
+  activeCategories: {
     type: Array,
     default: () => []
   }
@@ -243,6 +257,36 @@ const getCategories = (restaurant) => {
   } catch {
     return ['식당']
   }
+}
+
+/**
+ * 카드에 보여줄 카테고리 순서를 결정한다.
+ * - 현재 선택된 필터(activeCategories)에 포함된 카테고리를 먼저 배치
+ * - 나머지 카테고리는 그 뒤에 그대로 붙인다.
+ */
+const getDisplayCategories = (restaurant) => {
+  const baseCategories = getCategories(restaurant)
+  if (!props.activeCategories || props.activeCategories.length === 0) {
+    return baseCategories
+  }
+
+  const activeSet = new Set(props.activeCategories)
+  const primary = []
+  const secondary = []
+
+  for (const cat of baseCategories) {
+    if (activeSet.has(cat)) {
+      primary.push(cat)
+    } else {
+      secondary.push(cat)
+    }
+  }
+
+  return [...primary, ...secondary]
+}
+
+const isActiveCategory = (cat) => {
+  return props.activeCategories?.includes(cat)
 }
 
 const getBusinessStatus = (restaurant) => {
@@ -424,7 +468,8 @@ const formatDistance = (meters) => {
   flex-shrink: 0;
   width: 383px;
   min-width: 383px;
-  height: 167px;
+  min-height: 167px;
+  height: auto;
   background: #fff;
   border: 1px solid #dadce0;
   border-radius: 23.5px;
@@ -529,12 +574,6 @@ const formatDistance = (meters) => {
   color: #3c4043;
   margin: 0;
   line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
 .card-actions {
@@ -571,8 +610,6 @@ const formatDistance = (meters) => {
 
 .card-categories {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
 }
 
@@ -581,6 +618,25 @@ const formatDistance = (meters) => {
   font-weight: 500;
   font-size: 13px;
   color: #3c4043;
+  line-height: 1.35;
+}
+
+.card-category-separator {
+  margin: 0 4px;
+  color: #9aa0a6;
+}
+
+.card-category--primary {
+  font-weight: 700;
+  color: #ff5531;
+}
+
+.card-business-status {
+  margin-top: 2px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  color: #5f6368;
   line-height: 1.35;
 }
 
