@@ -16,6 +16,9 @@ const timerOption = ref('none')
 
 const restaurants = ref([])
 const selectedItems = ref(new Set())
+const showPopup = ref(false)
+const shareLink = ref('')
+const createdVoteId = ref('')
 
 onMounted(() => {
   const raw = route.query.data
@@ -78,6 +81,7 @@ const handleCreate = () => {
       address: r.address,
       photoName: r.photoName,
       rating: r.rating,
+      openNow: r.openNow ?? null,
       categories: r.categories
     }))
 
@@ -87,9 +91,35 @@ const handleCreate = () => {
     options: selected
   }
 
-  console.log('투표 생성 데이터:', payload)
-  alert('투표가 생성되었습니다! (API 연동 예정)')
-  router.back()
+  const voteId = crypto.randomUUID().slice(0, 8)
+  const voteRecord = {
+    ...payload,
+    id: voteId,
+    createdAt: new Date().toISOString(),
+    voters: []
+  }
+
+  localStorage.setItem(`vote_${voteId}`, JSON.stringify(voteRecord))
+  createdVoteId.value = voteId
+  shareLink.value = `${window.location.origin}/vote/${voteId}`
+  showPopup.value = true
+}
+
+const closePopup = () => {
+  showPopup.value = false
+}
+
+const goToVote = () => {
+  showPopup.value = false
+  router.push(`/vote/${createdVoteId.value}`)
+}
+
+const copyShareLink = async () => {
+  try {
+    await navigator.clipboard.writeText(shareLink.value)
+  } catch {
+    // fallback: silent fail
+  }
 }
 
 const goBack = () => {
@@ -98,7 +128,7 @@ const goBack = () => {
 </script>
 
 <template>
-  <div class="vote-create-page">
+  <div class="vote-create-page" :class="{ 'page-disabled': showPopup }">
     <div class="vote-create-form">
       <!-- 제목 영역 -->
       <div class="editable-title">
@@ -108,6 +138,7 @@ const goBack = () => {
             ref="titleInputRef"
             v-model="voteTitle"
             class="title-input"
+            maxlength="30"
             @blur="finishEditTitle"
             @keyup.enter="finishEditTitle"
           />
@@ -211,6 +242,35 @@ const goBack = () => {
         </button>
       </div>
     </div>
+
+    <!-- 투표 생성 팝업 오버레이 -->
+    <Transition name="popup-fade">
+      <div v-if="showPopup" class="popup-overlay" @click.self="closePopup">
+        <div class="popup-card">
+          <div class="popup-close-row">
+            <button class="popup-close-btn" @click="closePopup" aria-label="닫기">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 5L5 15M5 5l10 10" stroke="#5F6368" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="popup-content">
+            <p class="popup-title">투표가 생성되었습니다!</p>
+            <div class="popup-link-field">
+              <svg class="link-icon" width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M13.5 17.5a5.5 5.5 0 008 0l3-3a5.5 5.5 0 00-7.78-7.78l-1.72 1.71" stroke="#5F6368" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M18.5 14.5a5.5 5.5 0 00-8 0l-3 3a5.5 5.5 0 007.78 7.78l1.71-1.71" stroke="#5F6368" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="link-text">{{ shareLink }}</span>
+              <button class="share-btn" @click="copyShareLink">공유하기</button>
+            </div>
+          </div>
+          <div class="popup-action">
+            <button class="go-vote-btn" @click="goToVote">투표하러가기</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -248,6 +308,7 @@ const goBack = () => {
   display: flex;
   align-items: center;
   gap: 4px;
+  overflow: hidden;
 }
 
 .title-text {
@@ -258,6 +319,10 @@ const goBack = () => {
   color: #3c4043;
   margin: 0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 .title-input {
@@ -271,7 +336,9 @@ const goBack = () => {
   outline: none;
   padding: 0 0 4px;
   background: transparent;
-  min-width: 300px;
+  flex: 1;
+  min-width: 0;
+  width: 0;
 }
 
 .edit-icon-btn {
@@ -537,5 +604,189 @@ const goBack = () => {
 .create-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 페이지 비활성화 */
+.vote-create-page.page-disabled {
+  pointer-events: none;
+  user-select: none;
+}
+
+.vote-create-page.page-disabled .vote-create-form {
+  filter: brightness(0.7);
+  opacity: 0.6;
+}
+
+/* 팝업 오버레이 */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: all;
+}
+
+/* 팝업 카드 */
+.popup-card {
+  background-color: #fff;
+  border-radius: 48px;
+  padding: 24px 32px 56px;
+  width: 480px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  box-shadow: 0 0 48px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.popup-close-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.popup-close-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.popup-close-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.popup-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.popup-title {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 22px;
+  line-height: 1.35;
+  color: #000;
+  text-align: center;
+  margin: 0;
+}
+
+.popup-link-field {
+  width: 100%;
+  height: 56px;
+  border: 1px solid #dadce0;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.link-icon {
+  flex-shrink: 0;
+}
+
+.link-text {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #797f86;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.share-btn {
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #dadce0;
+  border-radius: 12px;
+  background-color: #fff;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #3c4043;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+
+.share-btn:hover {
+  background-color: #f5f5f5;
+}
+
+.popup-action {
+  width: 100%;
+  padding: 0 80px;
+  box-sizing: border-box;
+}
+
+.go-vote-btn {
+  width: 100%;
+  height: 56px;
+  border: none;
+  border-radius: 16px;
+  background-color: #ff5531;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.35;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.go-vote-btn:hover {
+  background-color: #e6442a;
+}
+
+/* 팝업 트랜지션 */
+.popup-fade-enter-active,
+.popup-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.popup-fade-enter-active .popup-card,
+.popup-fade-leave-active .popup-card {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.popup-fade-enter-from,
+.popup-fade-leave-to {
+  opacity: 0;
+}
+
+.popup-fade-enter-from .popup-card {
+  transform: scale(0.92);
+  opacity: 0;
+}
+
+.popup-fade-leave-to .popup-card {
+  transform: scale(0.92);
+  opacity: 0;
 }
 </style>

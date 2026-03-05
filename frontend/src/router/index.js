@@ -6,6 +6,7 @@ import SignUpPage from '@/components/SignUpPage.vue'
 import LoginPage from '@/components/LoginPage.vue'
 import RouletteSharePage from '@/components/RouletteSharePage.vue'
 import VoteCreatePage from '@/components/VoteCreatePage.vue'
+import VotePage from '@/components/VotePage.vue'
 
 const routes = [
   {
@@ -49,6 +50,12 @@ const routes = [
     name: 'voteCreate',
     component: VoteCreatePage,
     meta: { title: '투표 생성 - MECHU' }
+  },
+  {
+    path: '/vote/:id',
+    name: 'vote',
+    component: VotePage,
+    meta: { title: '투표 - MECHU' }
   }
 ]
 

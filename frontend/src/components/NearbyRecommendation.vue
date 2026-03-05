@@ -272,6 +272,7 @@ const handleVoteCreate = () => {
     address: r.address || '',
     photoName: r.photoName || null,
     rating: typeof r.rating === 'number' ? r.rating : null,
+    openNow: r.openNow ?? null,
     categories: filterCategories.length > 0 ? filterCategories : ['식당']
   }))
 

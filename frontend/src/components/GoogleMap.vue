@@ -2,7 +2,7 @@
 import { ref, onMounted, watch } from 'vue'
 import currentLocationIcon from '@/assets/current-location-icon.svg'
 import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
-import markerPinletIcon from '@/assets/marker-pinlet.svg'
+import markerPinletIcon from '@/assets/marker-pin-icon.svg'
 import heartIcon from '@/assets/heart-icon.svg'
 import refreshIcon from '@/assets/refresh-icon.svg'
 import externalLinkIcon from '@/assets/external-link-icon.svg'
