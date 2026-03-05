@@ -4,6 +4,8 @@ import NearbyRecommendation from '@/components/NearbyRecommendation.vue'
 import AiRecommendation from '@/components/AiRecommendation.vue'
 import SignUpPage from '@/components/SignUpPage.vue'
 import LoginPage from '@/components/LoginPage.vue'
+import RouletteSharePage from '@/components/RouletteSharePage.vue'
+import VoteCreatePage from '@/components/VoteCreatePage.vue'
 
 const routes = [
   {
@@ -35,6 +37,18 @@ const routes = [
     name: 'signup',
     component: SignUpPage,
     meta: { title: '회원가입 - MECHU' }
+  },
+  {
+    path: '/roulette/share',
+    name: 'rouletteShare',
+    component: RouletteSharePage,
+    meta: { title: '룰렛 결과 공유 - MECHU' }
+  },
+  {
+    path: '/vote/create',
+    name: 'voteCreate',
+    component: VoteCreatePage,
+    meta: { title: '투표 생성 - MECHU' }
   }
 ]
 

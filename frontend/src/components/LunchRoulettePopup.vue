@@ -279,9 +279,15 @@ function handleRespin() {
 }
 
 function handleShare() {
-  if (winnerSegmentIndex.value >= 0) {
-    emit('share', segmentRestaurants.value[winnerSegmentIndex.value])
-  }
+  if (winnerSegmentIndex.value < 0) return
+
+  const winner = segmentRestaurants.value[winnerSegmentIndex.value]
+  const candidates = displayRestaurants.value
+
+  emit('share', {
+    winner,
+    candidates
+  })
 }
 
 function handleClose() {

@@ -1,9 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import GoogleMap from './GoogleMap.vue'
 import FilterPanel from './FilterPanel.vue'
 import BottomSeat from './BottomSeat.vue'
 import LunchRoulettePopup from './LunchRoulettePopup.vue'
+
+const router = useRouter()
 
 const apiKey = ref('')
 const filters = ref({
@@ -255,6 +258,64 @@ const handleCardSelect = (restaurant) => {
     googleMapRef.value.focusOnRestaurant(restaurant)
   }
 }
+
+const handleVoteCreate = () => {
+  if (!restaurants.value.length) return
+
+  const filterCategories = (filters.value.foodTypes || [])
+    .map(id => FOOD_TYPE_TO_CATEGORY[id])
+    .filter(Boolean)
+
+  const data = restaurants.value.map(r => ({
+    name: r.name || '',
+    googlePlaceId: r.googlePlaceId || '',
+    address: r.address || '',
+    photoName: r.photoName || null,
+    rating: typeof r.rating === 'number' ? r.rating : null,
+    categories: filterCategories.length > 0 ? filterCategories : ['식당']
+  }))
+
+  const encoded = encodeURIComponent(JSON.stringify(data))
+  router.push({ name: 'voteCreate', query: { data: encoded } })
+}
+
+// 룰렛 결과 공유 페이지로 이동
+const handleShare = (payload) => {
+  const candidates = (payload?.candidates && payload.candidates.length > 0)
+    ? payload.candidates
+    : restaurants.value.slice(0, 5)
+
+  if (!candidates.length) return
+
+  const winner = payload?.winner || candidates[0]
+
+  const filterCategories = (filters.value.foodTypes || [])
+    .map(id => FOOD_TYPE_TO_CATEGORY[id])
+    .filter(Boolean)
+
+  const data = {
+    winnerName: winner?.name || '',
+    winnerPlaceId: winner?.googlePlaceId || '',
+    restaurants: candidates.map((r) => ({
+      name: r?.name || '',
+      googlePlaceId: r?.googlePlaceId || '',
+      address: r?.address || '',
+      photoName: r?.photoName || null,
+      rating: typeof r?.rating === 'number' ? r.rating : null,
+      distanceMeters: r?.distanceMeters || null,
+      openNow: r?.openNow ?? null,
+      googleMapsUri: r?.googleMapsUri || '',
+      categories: filterCategories
+    }))
+  }
+
+  const encoded = encodeURIComponent(JSON.stringify(data))
+
+  router.push({
+    name: 'rouletteShare',
+    query: { data: encoded }
+  })
+}
 </script>
 
 <template>
@@ -283,10 +344,12 @@ const handleCardSelect = (restaurant) => {
         @select="handleCardSelect"
         @roulette="rouletteOpen = true"
         @refresh="handleRefresh"
+        @vote-create="handleVoteCreate"
       />
       <LunchRoulettePopup
         v-model="rouletteOpen"
         :restaurants="restaurants"
+        @share="handleShare"
       />
     </div>
    <FilterPanel

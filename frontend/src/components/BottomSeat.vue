@@ -3,7 +3,7 @@
     <div class="bottom-seat-panel">
       <!-- 상단 버튼 영역 (결과 있을 때) -->
       <div v-if="hasResults" class="bottom-seat-actions">
-        <button type="button" class="btn-primary" @click="$emit('recommend')">
+        <button type="button" class="btn-primary" @click="$emit('vote-create')">
           투표 만들기
         </button>
         <button type="button" class="btn-roulette" @click="$emit('roulette')">
@@ -110,7 +110,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['recommend', 'select', 'roulette', 'refresh'])
+const emit = defineEmits(['recommend', 'select', 'roulette', 'refresh', 'vote-create'])
 
 const favorites = ref(new Set())
 const refreshingIndex = ref(-1)
