@@ -3,11 +3,13 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCapsLock } from '@/composables/useCapsLock'
 import { useEmailValidation } from '@/composables/useEmailValidation'
+import { useAuth } from '@/composables/useAuth'
 import visibilityIcon from '@/assets/visibility-icon.svg'
 import visibilityOffIcon from '@/assets/visibility-off-icon.svg'
 import logoImage from '@/assets/logo-mechu.svg'
 
 const router = useRouter()
+const { setFromMemberResponse } = useAuth()
 
 const email = ref('')
 const password = ref('')
@@ -37,10 +39,34 @@ const isFormValid = computed(() =>
   isEmailValid.value && isPasswordValid.value && isPasswordMatch.value
 )
 
-const handleSubmit = () => {
-  if (!isFormValid.value) return
-  // TODO: API 연동
-  console.log('회원가입 요청:', { email: email.value })
+const isSubmitting = ref(false)
+const submitError = ref('')
+
+const handleSubmit = async () => {
+  if (!isFormValid.value || isSubmitting.value) return
+  isSubmitting.value = true
+  submitError.value = ''
+  try {
+    const res = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email.value.trim(),
+        password: password.value
+      })
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      submitError.value = data.message || '회원가입에 실패했습니다. 다시 시도해주세요.'
+      return
+    }
+    setFromMemberResponse(data)
+    router.push('/')
+  } catch (err) {
+    submitError.value = '네트워크 오류가 발생했습니다. 다시 시도해주세요.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 const goToLogin = () => {
@@ -189,14 +215,17 @@ const goToLogin = () => {
             </p>
           </div>
 
+          <p v-if="submitError" class="form-error submit-error" role="alert">
+            {{ submitError }}
+          </p>
           <button
             type="submit"
             class="submit-button"
-            :class="{ 'submit-button--active': isFormValid }"
-            :disabled="!isFormValid"
-            aria-disabled="!isFormValid"
+            :class="{ 'submit-button--active': isFormValid && !isSubmitting }"
+            :disabled="!isFormValid || isSubmitting"
+            aria-disabled="!isFormValid || isSubmitting"
           >
-            회원가입
+            {{ isSubmitting ? '가입 중...' : '회원가입' }}
           </button>
         </form>
 
@@ -386,6 +415,10 @@ const goToLogin = () => {
   line-height: 1.5;
   color: #ff5531;
   margin: 0;
+}
+
+.submit-error {
+  margin-top: 4px;
 }
 
 .suggestion-link {

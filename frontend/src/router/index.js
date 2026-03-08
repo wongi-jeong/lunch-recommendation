@@ -3,10 +3,12 @@ import MainPage from '@/components/MainPage.vue'
 import NearbyRecommendation from '@/components/nearby/NearbyRecommendation.vue'
 import AiRecommendation from '@/components/AiRecommendation.vue'
 import SignUpPage from '@/components/SignUpPage.vue'
+import SignUpCompletePage from '@/components/SignUpCompletePage.vue'
 import LoginPage from '@/components/LoginPage.vue'
 import RouletteSharePage from '@/components/RouletteSharePage.vue'
 import VoteCreatePage from '@/components/vote/VoteCreatePage.vue'
 import VotePage from '@/components/vote/VotePage.vue'
+import MyPage from '@/components/MyPage.vue'
 
 const routes = [
   {
@@ -40,6 +42,12 @@ const routes = [
     meta: { title: '회원가입 - MECHU' }
   },
   {
+    path: '/signup/complete',
+    name: 'signupComplete',
+    component: SignUpCompletePage,
+    meta: { title: '회원가입 완료 - MECHU' }
+  },
+  {
     path: '/roulette/share',
     name: 'rouletteShare',
     component: RouletteSharePage,
@@ -56,6 +64,12 @@ const routes = [
     name: 'vote',
     component: VotePage,
     meta: { title: '투표 - MECHU' }
+  },
+  {
+    path: '/my',
+    name: 'my',
+    component: MyPage,
+    meta: { title: '마이페이지 - MECHU', requiresAuth: true }
   }
 ]
 
@@ -64,8 +78,15 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to) => {
+router.beforeEach((to, from, next) => {
   document.title = to.meta.title || 'MECHU - 디두개'
+  const isLoggedIn = !!sessionStorage.getItem('authToken')
+  const requiresAuth = to.meta.requiresAuth === true
+  if (requiresAuth && !isLoggedIn) {
+    next('/login')
+    return
+  }
+  next()
 })
 
 export default router

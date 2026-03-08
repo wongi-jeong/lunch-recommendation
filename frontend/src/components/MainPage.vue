@@ -2,8 +2,8 @@
 import { ref } from 'vue'
 import forkImg from '@/assets/fork-icon.svg'
 import spoonImg from '@/assets/spoon-icon.svg'
-import plateImg from '@/assets/plate-image.svg'
-import hamburgerImg from '@/assets/hamburger-image.png'
+import plateImg from '@/assets/plate-icon.svg'
+import mainHamburgerImg from '@/assets/main-hamburger-image.png'
 import arrowRightIcon from '@/assets/arrow-right-icon.svg'
 
 const isMouseLeft = ref(false)
@@ -57,7 +57,7 @@ const isMouseRight = ref(false)
               aria-hidden="true"
             />
             <img
-              :src="hamburgerImg"
+              :src="mainHamburgerImg"
               alt="햄버거"
               class="hamburger"
             />

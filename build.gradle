@@ -1,0 +1,4 @@
+// 루트 빌드: 하위 프로젝트(backend)만 포함. IDE가 backend 클래스패스를 인식하도록 함.
+subprojects { subproject ->
+	// backend/build.gradle 에서 플러그인·의존성 관리
+}

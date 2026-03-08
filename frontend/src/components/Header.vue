@@ -1,29 +1,32 @@
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import profileIcon from '@/assets/profile-icon.svg'
 import logoImage from '@/assets/logo-mechu.svg'
 
 const router = useRouter()
 const route = useRoute()
-
-// TODO: 회원 테이블/API 연동 후 세션 체크 로직 구현
-// 현재는 sessionStorage에 authToken 존재 여부로 로그인 상태 판단
-const isLoggedIn = ref(false)
-
-const checkAuthSession = () => {
-  isLoggedIn.value = !!sessionStorage.getItem('authToken')
-}
+const { isLoggedIn, clearAuth, getToken } = useAuth()
 
 onMounted(() => {
-  checkAuthSession()
+  getToken()
 })
 
 const handleAuthButtonClick = () => {
   if (isLoggedIn.value) {
-    sessionStorage.removeItem('authToken')
-    isLoggedIn.value = false
-    // TODO: API 연동 시 로그아웃 요청 추가
+    clearAuth()
+    if (route.meta.requiresAuth) {
+      router.replace('/')
+    }
+  } else {
+    router.push('/login')
+  }
+}
+
+const goToMyPage = () => {
+  if (isLoggedIn.value) {
+    router.push('/my')
   } else {
     router.push('/login')
   }
@@ -44,7 +47,7 @@ const activeTabId = computed(() => {
 
   if (path === '/nearby') return 'near'
   if (path === '/ai') return 'ai'
-  if (path === '/' && isLoggedIn.value) return 'favorites'
+  // 메인(/)은 상단 카테고리에 해당하지 않음 → 어떤 탭도 강조하지 않음
   if (path === '/') return null
 
   return tabs.find((t) => t.path !== '/' && path.startsWith(t.path))?.id ?? null
@@ -86,8 +89,8 @@ const setActiveTab = (tab) => {
         <button class="user-button" type="button">
           <p class="user-button-text">알림</p>
         </button>
-        <button class="user-button" type="button">
-          <img :src="profileIcon" alt="프로필" class="profile-icon" />
+        <button class="user-button" type="button" aria-label="마이페이지" @click="goToMyPage">
+          <img :src="profileIcon" alt="" class="profile-icon" aria-hidden="true" />
           <p class="user-button-text">마이</p>
         </button>
         <button class="user-button" type="button" @click="handleAuthButtonClick">
