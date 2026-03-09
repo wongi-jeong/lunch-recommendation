@@ -47,10 +47,20 @@
               <button
                 type="button"
                 class="card-favorite"
-                :class="{ active: favorites.has(restaurant.id ?? restaurant.name) }"
-                @click.stop="toggleFavorite(restaurant)"
+                :class="{ active: isFavorite(restaurant) }"
+                @click.stop="emitToggleFavorite(restaurant)"
+                aria-label="찜하기"
               >
-                <img src="@/assets/heart-icon.svg" alt="찜하기" class="card-favorite-icon" />
+                <svg
+                  class="card-favorite-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    class="card-favorite-icon-path"
+                    d="M12 20.25c-.32 0-.64-.1-.9-.3-.76-.56-1.45-1.09-2.08-1.56-2.53-1.92-4.42-3.36-4.42-5.89C4.6 9.5 6.1 8 7.92 8c1.12 0 2.12.52 2.78 1.39L12 10.9l1.3-1.51C13.96 8.52 14.96 8 16.08 8 17.9 8 19.4 9.5 19.4 12.5c0 2.53-1.89 3.97-4.42 5.89-.63.47-1.32 1-2.08 1.56-.26.2-.58.3-.9.3Z"
+                  />
+                </svg>
               </button>
             </div>
 
@@ -102,7 +112,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
 
 const props = defineProps({
@@ -121,12 +131,23 @@ const props = defineProps({
   activeCategories: {
     type: Array,
     default: () => []
+  },
+  favoriteIds: {
+    type: Array,
+    default: () => []
   }
 })
 
-const emit = defineEmits(['recommend', 'select', 'roulette', 'refresh', 'vote-create'])
+const emit = defineEmits([
+  'recommend',
+  'select',
+  'roulette',
+  'refresh',
+  'vote-create',
+  'toggle-favorite'
+])
 
-const favorites = ref(new Set())
+const favoriteIdSet = computed(() => new Set(props.favoriteIds ?? []))
 const refreshingIndex = ref(-1)
 const swappedIndex = ref(-1)
 // deep watch에서는 newVal/oldVal이 동일 참조이므로, 새로고침 시작 시점의 식별자를 저장해 비교
@@ -160,14 +181,14 @@ const handleImageError = (event) => {
   event.target.src = defaultThumbnail
 }
 
-const toggleFavorite = (restaurant) => {
-  const id = restaurant.id ?? restaurant.name
-  if (favorites.value.has(id)) {
-    favorites.value.delete(id)
-  } else {
-    favorites.value.add(id)
-  }
-  favorites.value = new Set(favorites.value)
+const emitToggleFavorite = (restaurant) => {
+  emit('toggle-favorite', restaurant)
+}
+
+const isFavorite = (restaurant) => {
+  const id = restaurant.googlePlaceId ?? restaurant.id ?? restaurant.name
+  if (!id) return false
+  return favoriteIdSet.value.has(id)
 }
 
 const refreshRestaurant = (restaurant, index) => {
@@ -526,35 +547,58 @@ const formatDistance = (meters) => {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 42px;
-  height: 42px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 1;
-  transition: background 0.2s;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  transform: translateY(0) scale(1);
+  transition:
+    background 0.18s ease-out,
+    box-shadow 0.18s ease-out,
+    transform 0.18s ease-out;
 }
 
 .card-favorite:hover {
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.65);
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+.card-favorite:active {
+  transform: translateY(0) scale(0.96);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
 }
 
 .card-favorite.active {
-  background: rgba(255, 85, 49, 0.9);
+  background: rgba(0, 0, 0, 0.7);
 }
 
 .card-favorite-icon {
-  width: 24px;
-  height: 24px;
-  filter: brightness(0) invert(1);
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
 }
 
-.card-favorite.active .card-favorite-icon {
-  filter: brightness(0) saturate(100%) invert(43%) sepia(96%) saturate(1690%) hue-rotate(345deg) brightness(101%) contrast(101%);
+.card-favorite-icon-path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: fill 0.15s ease-out, stroke 0.15s ease-out;
+}
+
+.card-favorite.active .card-favorite-icon-path {
+  fill: #ff5531;
+  stroke: #ff5531;
 }
 
 /* 식당 정보 영역 */

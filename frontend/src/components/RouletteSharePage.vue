@@ -1,6 +1,7 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import wheelAccessory from '@/assets/roulette-wheel-frame.svg'
 import roulettePointer from '@/assets/roulette-pointer.svg'
 import externalLinkIcon from '@/assets/external-link-icon.svg'
@@ -14,6 +15,13 @@ const SEGMENT_COLORS_5 = ['#26824E', '#5BC086', '#A1D9B7', '#34A666', '#7DCE9B']
 
 const route = useRoute()
 const router = useRouter()
+const { getToken } = useAuth()
+
+const isFromHistory = computed(() => {
+  const flag = route.query.fromHistory
+  if (flag === 'true' || flag === '1') return true
+  return Boolean(flag)
+})
 
 const decodedData = computed(() => {
   const raw = route.query.data
@@ -47,6 +55,44 @@ const winner = computed(() =>
 )
 
 const hasValidData = computed(() => count.value >= 2)
+
+const shareDataRaw = computed(() => {
+  const raw = route.query.data
+  return typeof raw === 'string' ? raw : ''
+})
+
+const saveHistoryEntry = async () => {
+  if (!hasValidData.value || !winner.value || !decodedData.value) return
+
+  // 히스토리에서 조회로 들어온 경우에는 새로 저장하지 않음
+  if (isFromHistory.value) return
+
+  const token = getToken()
+  if (!token) return
+  const shareData = shareDataRaw.value
+  if (!shareData) return
+
+  try {
+    await fetch('/api/roulette-history', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': token
+      },
+      body: JSON.stringify({
+        winnerName: winnerName.value || '',
+        winnerPlaceId: decodedData.value?.winnerPlaceId || winner.value?.googlePlaceId || '',
+        shareData
+      })
+    })
+  } catch (e) {
+    console.warn('룰렛 히스토리 저장 실패:', e)
+  }
+}
+
+onMounted(() => {
+  saveHistoryEntry()
+})
 
 function getRestaurantImage(restaurant) {
   if (restaurant?.photoName && Array.isArray(restaurant.photoName) && restaurant.photoName.length > 0) {

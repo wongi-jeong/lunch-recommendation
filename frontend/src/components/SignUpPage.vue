@@ -3,13 +3,11 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCapsLock } from '@/composables/useCapsLock'
 import { useEmailValidation } from '@/composables/useEmailValidation'
-import { useAuth } from '@/composables/useAuth'
 import visibilityIcon from '@/assets/visibility-icon.svg'
 import visibilityOffIcon from '@/assets/visibility-off-icon.svg'
 import logoImage from '@/assets/logo-mechu.svg'
 
 const router = useRouter()
-const { setFromMemberResponse } = useAuth()
 
 const email = ref('')
 const password = ref('')
@@ -60,8 +58,7 @@ const handleSubmit = async () => {
       submitError.value = data.message || '회원가입에 실패했습니다. 다시 시도해주세요.'
       return
     }
-    setFromMemberResponse(data)
-    router.push('/')
+    router.push('/signup/complete')
   } catch (err) {
     submitError.value = '네트워크 오류가 발생했습니다. 다시 시도해주세요.'
   } finally {

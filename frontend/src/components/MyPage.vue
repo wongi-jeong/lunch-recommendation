@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useFavorites } from '@/composables/useFavorites'
 import profileIcon from '@/assets/profile-icon.svg'
 import profileEditIcon from '@/assets/profile-edit-icon.svg'
 import profileAvatar1 from '@/assets/profile-avatar-1.png'
@@ -12,6 +13,8 @@ import profileAvatar5 from '@/assets/profile-avatar-5.png'
 import profileAvatar6 from '@/assets/profile-avatar-6.png'
 import profileAvatar7 from '@/assets/profile-avatar-7.png'
 import profileAvatar8 from '@/assets/profile-avatar-8.png'
+import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
+import externalLinkIcon from '@/assets/external-link-icon.svg'
 import ProfileChangeModal from '@/components/ProfileChangeModal.vue'
 
 const route = useRoute()
@@ -24,6 +27,121 @@ const memberEmail = ref('')
 const emailLoadError = ref('')
 const ongoingVotes = ref([])
 const endedVotes = ref([])
+
+const PAGE_SIZE = 5
+const ongoingPage = ref(1)
+const endedPage = ref(1)
+
+// 룰렛 결과 히스토리 (로컬 저장)
+const ROULETTE_HISTORY_KEY_PREFIX = 'rouletteHistory:'
+const rouletteHistory = ref([])
+
+// 즐겨찾기 (최근 즐겨찾기 한 장소)
+const { favorites, removeFavorite } = useFavorites()
+
+const latestFavorites = computed(() => {
+  if (!favorites.value || favorites.value.length === 0) return []
+  return favorites.value.slice(0, 3)
+})
+
+const getFavoriteImage = (item) => {
+  if (item?.photoName) {
+    return `/api/restaurants/photo?name=${encodeURIComponent(item.photoName)}`
+  }
+  return defaultThumbnail
+}
+
+const getFavoriteCategory = (item) => {
+  if (!item) return '식당'
+  if (Array.isArray(item.categories) && item.categories.length > 0) {
+    return item.categories[0]
+  }
+  return '식당'
+}
+
+const getFavoriteLink = (item) => {
+  if (!item) return ''
+  if (item.googleMapsUri) return item.googleMapsUri
+  if (item.latitude != null && item.longitude != null) {
+    const lat = Number(item.latitude)
+    const lng = Number(item.longitude)
+    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+      return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+    }
+  }
+  return ''
+}
+
+const openFavoriteExternal = (item) => {
+  const url = getFavoriteLink(item)
+  if (!url) return
+  window.open(url, '_blank', 'noopener')
+}
+
+const handleToggleFavoriteFromMyPage = (item) => {
+  if (!item?.id) return
+  removeFavorite(item.id)
+}
+
+const totalOngoingPages = computed(() => {
+  return Math.max(1, Math.ceil(ongoingVotes.value.length / PAGE_SIZE))
+})
+
+const totalEndedPages = computed(() => {
+  return Math.max(1, Math.ceil(endedVotes.value.length / PAGE_SIZE))
+})
+
+const pagedOngoingVotes = computed(() => {
+  const start = (ongoingPage.value - 1) * PAGE_SIZE
+  return ongoingVotes.value.slice(start, start + PAGE_SIZE)
+})
+
+const ongoingPlaceholderCount = computed(() => {
+  const count = PAGE_SIZE - pagedOngoingVotes.value.length
+  return count > 0 ? count : 0
+})
+
+const sortedEndedVotes = computed(() => {
+  return [...endedVotes.value].sort((a, b) => {
+    const aTime = new Date(a.endedAt || a.createdAt || 0).getTime()
+    const bTime = new Date(b.endedAt || b.createdAt || 0).getTime()
+    return bTime - aTime
+  })
+})
+
+const pagedEndedVotes = computed(() => {
+  const start = (endedPage.value - 1) * PAGE_SIZE
+  return sortedEndedVotes.value.slice(start, start + PAGE_SIZE)
+})
+
+const combinedRecentResults = computed(() => {
+  const voteItems = sortedEndedVotes.value.map((v) => ({
+    type: 'vote',
+    id: v.id,
+    title: v.title,
+    createdAt: v.endedAt || v.createdAt
+  }))
+
+  const rouletteItems = (rouletteHistory.value || []).map((r) => ({
+    type: 'roulette',
+    id: r.id,
+    winnerName: r.winnerName,
+    shareData: r.shareData,
+    createdAt: r.createdAt
+  }))
+
+  return [...voteItems, ...rouletteItems]
+    .filter((item) => item.createdAt)
+    .sort((a, b) => {
+      const aTime = new Date(a.createdAt || 0).getTime()
+      const bTime = new Date(b.createdAt || 0).getTime()
+      return bTime - aTime
+    })
+})
+
+const limitedRecentResults = computed(() => {
+  return combinedRecentResults.value.slice(0, 3)
+})
 
 function applyProfileIndex(idx) {
   const n = typeof idx === 'number' ? idx : parseInt(idx, 10)
@@ -96,10 +214,103 @@ async function fetchEndedVotes() {
   }
 }
 
+async function loadRouletteHistory() {
+  const token = getToken()
+  if (!token) {
+    rouletteHistory.value = []
+    return
+  }
+  try {
+    const res = await fetch('/api/roulette-history/me', {
+      headers: {
+        'X-Auth-Token': token
+      },
+      cache: 'no-store'
+    })
+    if (!res.ok) {
+      rouletteHistory.value = []
+      return
+    }
+    const data = await res.json()
+    rouletteHistory.value = Array.isArray(data) ? data : []
+  } catch {
+    rouletteHistory.value = []
+  }
+}
+
+watch(ongoingVotes, () => {
+  ongoingPage.value = 1
+})
+
+watch(endedVotes, () => {
+  endedPage.value = 1
+})
+
+const setOngoingPage = (page) => {
+  const target = Number(page)
+  if (Number.isNaN(target)) return
+  if (target < 1 || target > totalOngoingPages.value) return
+  ongoingPage.value = target
+}
+
+const goPrevOngoingPage = () => {
+  if (ongoingPage.value > 1) {
+    setOngoingPage(ongoingPage.value - 1)
+  }
+}
+
+const goNextOngoingPage = () => {
+  if (ongoingPage.value < totalOngoingPages.value) {
+    setOngoingPage(ongoingPage.value + 1)
+  }
+}
+
+const ongoingPageItems = computed(() => {
+  const total = totalOngoingPages.value
+  const items = []
+
+  // 총 페이지가 10 이하이면 모두 노출
+  if (total <= 10) {
+    for (let i = 1; i <= total; i += 1) {
+      items.push({ type: 'number', value: i, label: String(i), key: `page-${i}` })
+    }
+    return items
+  }
+
+  // 총 페이지가 10을 초과하면:
+  // 1~8 페이지, 9번째는 ..., 10번째는 마지막 페이지
+  for (let i = 1; i <= 8; i += 1) {
+    items.push({ type: 'number', value: i, label: String(i), key: `page-${i}` })
+  }
+  items.push({ type: 'ellipsis', value: null, label: '...', key: 'page-ellipsis' })
+  items.push({ type: 'number', value: total, label: String(total), key: `page-${total}` })
+
+  return items
+})
+
+const goPrevEndedPage = () => {
+  if (endedPage.value > 1) {
+    endedPage.value -= 1
+  }
+}
+
+const goNextEndedPage = () => {
+  if (endedPage.value < totalEndedPages.value) {
+    endedPage.value += 1
+  }
+}
+
 function formatVoteDate(isoString) {
   if (!isoString) return ''
   const d = new Date(isoString)
-  return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })
+  return d.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  })
 }
 
 watch(() => route.path, (path) => {
@@ -108,6 +319,7 @@ watch(() => route.path, (path) => {
     fetchMe()
     fetchOngoingVotes()
     fetchEndedVotes()
+    loadRouletteHistory()
   }
 }, { immediate: true })
 
@@ -116,6 +328,7 @@ const handlePageshow = () => {
     fetchMe()
     fetchOngoingVotes()
     fetchEndedVotes()
+    loadRouletteHistory()
   }
 }
 
@@ -268,21 +481,61 @@ const currentProfileIndex = computed(() => {
         <div v-if="ongoingVotes.length === 0" class="section-contents section-contents--empty">
           <p class="empty-text">진행중인 투표가 없어요</p>
         </div>
-        <div v-else class="section-contents section-contents--list">
+        <div v-else class="section-contents section-contents--list section-contents--ongoing-votes">
           <router-link
-            v-for="v in ongoingVotes"
+            v-for="v in pagedOngoingVotes"
             :key="v.id"
             :to="`/vote/${v.id}`"
             class="vote-list-item"
           >
-            <span class="vote-list-title">{{ v.title }}</span>
+            <div class="vote-list-main">
+              <span class="result-label result-label--vote">투표</span>
+              <span class="vote-list-title">{{ v.title }}</span>
+            </div>
             <span class="vote-list-date">{{ formatVoteDate(v.createdAt) }}</span>
           </router-link>
+          <div
+            v-for="n in ongoingPlaceholderCount"
+            :key="`ongoing-placeholder-${n}`"
+            class="vote-list-item vote-list-item--placeholder"
+          >
+            <span class="vote-list-title">새로운 투표를 만들어보세요</span>
+            <span class="vote-list-date"> </span>
+          </div>
         </div>
-        <div v-if="ongoingVotes.length > 0" class="pagination">
-          <button type="button" class="pagination-arrow" aria-label="이전">‹</button>
-          <div class="pagination-page pagination-page--current">1</div>
-          <button type="button" class="pagination-arrow" aria-label="다음">›</button>
+        <div v-if="ongoingVotes.length > PAGE_SIZE" class="pagination">
+          <button
+            type="button"
+            class="pagination-arrow"
+            aria-label="이전"
+            :disabled="ongoingPage === 1"
+            @click="goPrevOngoingPage"
+          >
+            ‹
+          </button>
+          <button
+            v-for="item in ongoingPageItems"
+            :key="item.key"
+            type="button"
+            class="pagination-page"
+            :class="{
+              'pagination-page--current': item.type === 'number' && item.value === ongoingPage,
+              'pagination-page--ellipsis': item.type === 'ellipsis'
+            }"
+            :disabled="item.type === 'ellipsis'"
+            @click="item.type === 'number' ? setOngoingPage(item.value) : null"
+          >
+            {{ item.label }}
+          </button>
+          <button
+            type="button"
+            class="pagination-arrow"
+            aria-label="다음"
+            :disabled="ongoingPage === totalOngoingPages"
+            @click="goNextOngoingPage"
+          >
+            ›
+          </button>
         </div>
       </section>
 
@@ -291,28 +544,105 @@ const currentProfileIndex = computed(() => {
           <h2 id="section-fav-title" class="section-title">최근 즐겨찾기 한 장소</h2>
           <button type="button" class="btn-ghost">전체보기</button>
         </div>
-        <div class="section-contents section-contents--empty">
+        <div v-if="latestFavorites.length === 0" class="section-contents section-contents--empty">
           <p class="empty-text">즐겨찾기한 장소가 없어요</p>
+        </div>
+        <div v-else class="section-contents">
+          <ul class="favorites-list">
+            <li
+              v-for="item in latestFavorites"
+              :key="item.id"
+              class="favorite-item"
+            >
+              <div class="favorite-card">
+                <div class="favorite-thumb-wrap">
+                  <img
+                    :src="getFavoriteImage(item)"
+                    :alt="item.name"
+                    class="favorite-thumb"
+                    @error="(e) => { e.target.src = defaultThumbnail }"
+                  />
+                  <button
+                    type="button"
+                    class="favorite-heart-button"
+                    aria-label="즐겨찾기 해제"
+                    @click.stop="handleToggleFavoriteFromMyPage(item)"
+                  >
+                    <svg
+                      class="favorite-heart-icon"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        class="favorite-heart-path"
+                        d="M12 20.25c-.32 0-.64-.1-.9-.3-.76-.56-1.45-1.09-2.08-1.56-2.53-1.92-4.42-3.36-4.42-5.89C4.6 9.5 6.1 8 7.92 8c1.12 0 2.12.52 2.78 1.39L12 10.9l1.3-1.51C13.96 8.52 14.96 8 16.08 8 17.9 8 19.4 9.5 19.4 12.5c0 2.53-1.89 3.97-4.42 5.89-.63.47-1.32 1-2.08 1.56-.26.2-.58.3-.9.3Z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div class="favorite-info">
+                  <div class="favorite-header-row">
+                    <p class="favorite-name">
+                      {{ item.name }}
+                    </p>
+                    <button
+                      type="button"
+                      class="favorite-external-btn"
+                      aria-label="지도에서 보기"
+                      @click="openFavoriteExternal(item)"
+                    >
+                      <img
+                        :src="externalLinkIcon"
+                        alt=""
+                        class="favorite-external-icon"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </div>
+                  <p class="favorite-category">
+                    {{ getFavoriteCategory(item) }}
+                  </p>
+                </div>
+              </div>
+            </li>
+          </ul>
         </div>
       </section>
 
-      <section class="section" aria-labelledby="section-result-title">
+      <section class="section section--bottom-space" aria-labelledby="section-result-title">
         <div class="section-head">
           <h2 id="section-result-title" class="section-title">최근 진행한 결과</h2>
           <button type="button" class="btn-ghost">전체보기</button>
         </div>
-        <div v-if="endedVotes.length === 0" class="section-contents section-contents--empty">
+        <div
+          v-if="limitedRecentResults.length === 0"
+          class="section-contents section-contents--empty"
+        >
           <p class="empty-text">진행한 결과가 없어요</p>
         </div>
         <div v-else class="section-contents section-contents--list">
           <router-link
-            v-for="v in endedVotes"
-            :key="v.id"
-            :to="`/vote/${v.id}`"
+            v-for="item in limitedRecentResults"
+            :key="`${item.type}-${item.id}-${item.createdAt}`"
+            :to="
+              item.type === 'vote'
+                ? `/vote/${item.id}`
+                : { name: 'rouletteShare', query: { data: item.shareData, fromHistory: 'true' } }
+            "
             class="vote-list-item"
           >
-            <span class="vote-list-title">{{ v.title }}</span>
-            <span class="vote-list-date">{{ formatVoteDate(v.endedAt || v.createdAt) }}</span>
+            <div class="vote-list-main">
+              <span
+                class="result-label"
+                :class="item.type === 'vote' ? 'result-label--vote' : 'result-label--roulette'"
+              >
+                {{ item.type === 'vote' ? '투표' : '룰렛' }}
+              </span>
+              <span class="vote-list-title">
+                {{ item.type === 'vote' ? item.title : '오늘 점심은 여기로 결정!' }}
+              </span>
+            </div>
+            <span class="vote-list-date">{{ formatVoteDate(item.createdAt) }}</span>
           </router-link>
         </div>
       </section>
@@ -445,8 +775,8 @@ const currentProfileIndex = computed(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 70px;
-  padding: 80px 32px 48px 32px;
+  gap: 60px;
+  padding: 80px 32px 96px 32px;
   box-sizing: border-box;
 }
 
@@ -456,6 +786,11 @@ const currentProfileIndex = computed(() => {
   gap: 24px;
   width: 100%;
   max-width: 800px;
+  margin: 0;
+}
+
+.section--bottom-space {
+  padding-bottom: 80px;
 }
 
 .section-head {
@@ -635,6 +970,156 @@ const currentProfileIndex = computed(() => {
   gap: 8px;
 }
 
+.favorites-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 16px;
+}
+
+.favorite-item {
+  list-style: none;
+}
+
+.favorite-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 24px;
+  border: 1px solid #dadce0;
+  background-color: #ffffff;
+  box-sizing: border-box;
+  width: 260px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.favorite-thumb-wrap {
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  overflow: hidden;
+  background-color: #e8eaed;
+  position: relative;
+}
+
+.favorite-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.favorite-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.favorite-name {
+  margin: 0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  color: #202124;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.favorite-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.favorite-category {
+  margin: 0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  color: #ff5531;
+}
+
+.favorite-external-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.favorite-external-btn:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.favorite-external-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.favorite-heart-button {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  transition:
+    background 0.18s ease-out,
+    transform 0.18s ease-out,
+    box-shadow 0.18s ease-out;
+}
+
+.favorite-heart-button:hover {
+  background: rgba(0, 0, 0, 0.7);
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+.favorite-heart-button:active {
+  transform: translateY(0) scale(0.96);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
+.favorite-heart-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.favorite-heart-path {
+  fill: #ff5531;
+  stroke: #ff5531;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .vote-list-item {
   display: flex;
   align-items: center;
@@ -650,6 +1135,56 @@ const currentProfileIndex = computed(() => {
 .vote-list-item:hover {
   border-color: #ff5531;
   background-color: #fff5f3;
+}
+
+.vote-list-item--placeholder {
+  border-style: dashed;
+  border-color: #e8eaed;
+  background-color: #f8f9fa;
+  cursor: default;
+}
+
+.vote-list-item--placeholder .vote-list-title {
+  color: #9aa0a6;
+}
+
+.vote-list-item--roulette {
+  border-style: solid;
+  border-color: #dadce0;
+  background-color: #ffffff;
+}
+
+.vote-list-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.result-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.result-label--vote {
+  background-color: #fff0ea;
+  border: 1px solid #ff5531;
+  color: #ff5531;
+}
+
+.result-label--roulette {
+  background-color: #f1f3f4;        /* var(--Color-Gray-100, #F1F3F4) */
+  border: 1px solid #202124;        /* var(--Color-Gray-900, #202124) */
+  color: #3c4043;
 }
 
 .vote-list-title {
@@ -685,7 +1220,8 @@ const currentProfileIndex = computed(() => {
 .pagination {
   display: flex;
   align-items: center;
-  gap: 50px;
+  justify-content: center;
+  gap: 16px;
   padding: 10px 0;
 }
 
@@ -721,16 +1257,32 @@ const currentProfileIndex = computed(() => {
   width: 32px;
   height: 32px;
   border-radius: 4px;
+  border: 1px solid #dadce0;
+  background-color: #ffffff;
   font-family: 'Pretendard', sans-serif;
   font-weight: 600;
   font-size: 18px;
   line-height: 1.35;
   color: #5f6368;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.pagination-page:not(.pagination-page--ellipsis):not(.pagination-page--current):hover {
+  background-color: #f8f9fa;
+  border-color: #bdc1c6;
 }
 
 .pagination-page--current {
   background-color: #3c4043;
   color: #ffffff;
+  border-color: #3c4043;
+}
+
+.pagination-page--ellipsis {
+  cursor: default;
 }
 
 @media (max-width: 1024px) {
@@ -765,7 +1317,7 @@ const currentProfileIndex = computed(() => {
   }
 
   .mypage-main {
-    padding: 32px 20px 48px;
+    padding: 32px 20px 96px;
   }
 }
 </style>

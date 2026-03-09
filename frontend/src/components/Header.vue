@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import profileIcon from '@/assets/profile-icon.svg'
@@ -9,8 +9,154 @@ const router = useRouter()
 const route = useRoute()
 const { isLoggedIn, clearAuth, getToken } = useAuth()
 
+const notifications = ref([])
+const hasUnreadNotification = ref(false)
+const showNotificationPopup = ref(false)
+let notificationTimer = null
+
+const VOTE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+const loadSeenNotifications = (token) => {
+  if (!token) return new Set()
+  try {
+    const raw = localStorage.getItem(`vote_notifications_seen_${token}`)
+    if (!raw) return new Set()
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return new Set()
+    return new Set(arr)
+  } catch {
+    return new Set()
+  }
+}
+
+const saveSeenNotifications = (token, seenSet) => {
+  if (!token) return
+  try {
+    localStorage.setItem(
+      `vote_notifications_seen_${token}`,
+      JSON.stringify(Array.from(seenSet))
+    )
+  } catch {
+    // ignore
+  }
+}
+
+const syncNotifications = async () => {
+  const token = getToken()
+  if (!token) {
+    notifications.value = []
+    hasUnreadNotification.value = false
+    return
+  }
+
+  const now = Date.now()
+  const seenSet = loadSeenNotifications(token)
+  const endedVotes = []
+
+  const keys = Object.keys(localStorage).filter((k) => k.startsWith('vote_'))
+
+  for (const key of keys) {
+    try {
+      const vote = JSON.parse(localStorage.getItem(key))
+      if (!vote || String(vote.createdByMemberId ?? '') !== String(token)) continue
+
+      // 오래된 종료 투표 정리
+      if (vote.ended && vote.endedAt) {
+        const endedAtTime = new Date(vote.endedAt).getTime()
+        if (!Number.isNaN(endedAtTime) && now - endedAtTime > VOTE_TTL_MS) {
+          localStorage.removeItem(key)
+          continue
+        }
+      }
+
+      let ended = !!vote.ended
+
+      // 타이머 기반 자동 종료 (페이지를 보고 있지 않아도 동작)
+      if (!ended && vote.timer && vote.timer !== 'none' && vote.createdAt) {
+        const durationMs =
+          {
+            '10min': 10 * 60 * 1000,
+            '30min': 30 * 60 * 1000,
+            '1hour': 60 * 60 * 1000
+          }[vote.timer] || 0
+
+        if (durationMs > 0) {
+          const endTime = new Date(vote.createdAt).getTime() + durationMs
+          if (!Number.isNaN(endTime) && now >= endTime) {
+            ended = true
+            vote.ended = true
+            vote.endedAt = new Date(endTime).toISOString()
+            localStorage.setItem(key, JSON.stringify(vote))
+
+            try {
+              await fetch(`/api/votes/${vote.id}/end`, {
+                method: 'PATCH',
+                headers: { 'X-Auth-Token': token }
+              })
+            } catch {
+              // 백엔드 동기화 실패는 무시
+            }
+          }
+        }
+      }
+
+      if (!ended || !vote.endedAt) continue
+
+      endedVotes.push({
+        id: vote.id,
+        title: vote.title || '점심 메뉴 투표',
+        endedAt: vote.endedAt
+      })
+    } catch {
+      // corrupt entry, skip
+    }
+  }
+
+  endedVotes.sort(
+    (a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime()
+  )
+
+  notifications.value = endedVotes
+  hasUnreadNotification.value = endedVotes.some((n) => !seenSet.has(n.id))
+}
+
+const toggleNotificationPopup = async () => {
+  if (!isLoggedIn.value) {
+    router.push('/login')
+    return
+  }
+
+  if (!showNotificationPopup.value) {
+    await syncNotifications()
+
+    const token = getToken()
+    const seenSet = loadSeenNotifications(token)
+    notifications.value.forEach((n) => seenSet.add(n.id))
+    saveSeenNotifications(token, seenSet)
+    hasUnreadNotification.value = false
+  }
+
+  showNotificationPopup.value = !showNotificationPopup.value
+}
+
+const goToVoteResultFromNotification = (id) => {
+  showNotificationPopup.value = false
+  if (id) {
+    router.push(`/vote/${id}`)
+  }
+}
+
 onMounted(() => {
   getToken()
+  syncNotifications()
+  notificationTimer = setInterval(syncNotifications, 15000)
+})
+
+onUnmounted(() => {
+  if (notificationTimer) {
+    clearInterval(notificationTimer)
+    notificationTimer = null
+  }
 })
 
 const handleAuthButtonClick = () => {
@@ -86,9 +232,58 @@ const setActiveTab = (tab) => {
         </nav>
       </div>
       <div class="header-right">
-        <button class="user-button" type="button">
-          <p class="user-button-text">알림</p>
-        </button>
+        <div class="notification-wrapper">
+          <button
+            class="user-button notification-button"
+            type="button"
+            aria-label="종료된 투표 알림"
+            @click="toggleNotificationPopup"
+          >
+            <p class="user-button-text">알림</p>
+            <span
+              v-if="hasUnreadNotification"
+              class="notification-badge"
+              aria-hidden="true"
+            ></span>
+          </button>
+          <Transition name="popover-fade">
+            <div
+              v-if="showNotificationPopup"
+              class="notification-popup"
+            >
+              <p class="notification-title">종료된 투표</p>
+              <p
+                v-if="notifications.length === 0"
+                class="notification-empty"
+              >
+                새로운 종료된 투표가 없습니다.
+              </p>
+              <ul
+                v-else
+                class="notification-list"
+              >
+                <li
+                  v-for="item in notifications.slice(0, 5)"
+                  :key="item.id"
+                  class="notification-item"
+                >
+                  <button
+                    type="button"
+                    class="notification-item-btn"
+                    @click="goToVoteResultFromNotification(item.id)"
+                  >
+                    <span class="notification-item-title">
+                      {{ item.title }}
+                    </span>
+                    <span class="notification-item-meta">
+                      투표가 종료되었습니다
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </Transition>
+        </div>
         <button class="user-button" type="button" aria-label="마이페이지" @click="goToMyPage">
           <img :src="profileIcon" alt="" class="profile-icon" aria-hidden="true" />
           <p class="user-button-text">마이</p>
@@ -209,6 +404,104 @@ const setActiveTab = (tab) => {
   gap: 20px;
   height: 100%;
   align-items: center;
+}
+
+.notification-wrapper {
+  position: relative;
+}
+
+.notification-button {
+  position: relative;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ff5531;
+}
+
+.notification-popup {
+  position: absolute;
+  top: 56px;
+  right: 0;
+  width: 280px;
+  padding: 12px 0;
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+}
+
+.notification-title {
+  margin: 0 16px 8px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: #202124;
+}
+
+.notification-empty {
+  margin: 4px 16px 0;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 14px;
+  color: #5f6368;
+}
+
+.notification-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  margin: 0;
+  padding: 0;
+}
+
+.notification-item-btn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.notification-item-btn:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.notification-item-title {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: #202124;
+}
+
+.notification-item-meta {
+  font-family: 'Pretendard', sans-serif;
+  font-size: 12px;
+  color: #5f6368;
+}
+
+.popover-fade-enter-active,
+.popover-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.popover-fade-enter-from,
+.popover-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .user-button {

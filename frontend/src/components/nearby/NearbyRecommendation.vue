@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useFavorites } from '@/composables/useFavorites'
 import GoogleMap from '../GoogleMap.vue'
 import FilterPanel from './FilterPanel.vue'
 import BottomSeat from '../BottomSeat.vue'
@@ -10,6 +11,7 @@ import LoginRequiredModal from '../LoginRequiredModal.vue'
 
 const router = useRouter()
 const { isLoggedIn } = useAuth()
+const { favorites, addFavorite, removeFavorite } = useFavorites()
 
 const apiKey = ref('')
 const filters = ref({
@@ -50,6 +52,52 @@ const restaurants = ref([])
 const rouletteOpen = ref(false)
 // 로그인 필요 모달
 const showLoginRequiredModal = ref(false)
+const loginModalAction = ref(null) // 'vote-create' | 'favorite' | null
+
+const favoriteIds = computed(() => favorites.value.map((f) => f.id))
+
+const normalizeRestaurantForFavorite = (item) => {
+  if (!item) return null
+  const id =
+    item.googlePlaceId ||
+    item.placeId ||
+    item.id ||
+    (typeof item.name === 'string' ? item.name : null)
+
+  if (!id) return null
+
+  return {
+    id,
+    name: item.name || '',
+    address: item.address || '',
+    googleMapsUri: item.googleMapsUri || '',
+    latitude: item.latitude ?? item.lat ?? null,
+    longitude: item.longitude ?? item.lng ?? null,
+    rating: typeof item.rating === 'number' ? item.rating : null,
+    distanceMeters: item.distanceMeters ?? null,
+    photoName: Array.isArray(item.photoName) ? item.photoName[0] : item.photoName ?? null,
+    categories: Array.isArray(item.categories) ? item.categories : [],
+    favoritedAt: Date.now()
+  }
+}
+
+const toggleFavoriteRestaurant = (rawItem) => {
+  if (!isLoggedIn.value) {
+    loginModalAction.value = 'favorite'
+    showLoginRequiredModal.value = true
+    return
+  }
+
+  const normalized = normalizeRestaurantForFavorite(rawItem)
+  if (!normalized) return
+
+  const exists = favorites.value.some((f) => f.id === normalized.id)
+  if (exists) {
+    removeFavorite(normalized.id)
+  } else {
+    addFavorite(normalized)
+  }
+}
 
 // FilterPanel foodTypes id → 백엔드 categories(한글 라벨) 매핑
 const FOOD_TYPE_TO_CATEGORY = {
@@ -63,6 +111,70 @@ const FOOD_TYPE_TO_CATEGORY = {
   meat: '고기',
   noodle: '면/국물',
   cafe: '카페'
+}
+
+// Google Places placeTypes → 카테고리 (BottomSeat와 동일 매핑)
+const PLACE_TYPE_TO_CATEGORY = {
+  korean_restaurant: '한식',
+  barbecue_restaurant: '고기',
+  buffet_restaurant: '한식',
+  japanese_restaurant: '일식',
+  ramen_restaurant: '일식',
+  sushi_restaurant: '일식',
+  chinese_restaurant: '중식',
+  italian_restaurant: '양식',
+  french_restaurant: '양식',
+  american_restaurant: '양식',
+  spanish_restaurant: '양식',
+  greek_restaurant: '양식',
+  steak_house: '고기',
+  cafe: '카페',
+  coffee_shop: '카페',
+  vietnamese_restaurant: '아시안',
+  thai_restaurant: '아시안',
+  indian_restaurant: '아시안',
+  indonesian_restaurant: '아시안',
+  mediterranean_restaurant: '아시안',
+  turkish_restaurant: '아시안',
+  middle_eastern_restaurant: '아시안',
+  lebanese_restaurant: '아시안',
+  brazilian_restaurant: '아시안',
+  afghani_restaurant: '아시안',
+  african_restaurant: '아시안',
+  fast_food_restaurant: '패스트푸드',
+  hamburger_restaurant: '패스트푸드',
+  sandwich_shop: '패스트푸드',
+  deli: '패스트푸드',
+  cafeteria: '패스트푸드',
+  bagel_shop: '패스트푸드',
+  bar_and_grill: '고기',
+  noodle_restaurant: '면/국물',
+  vegan_restaurant: '비건',
+  vegetarian_restaurant: '비건',
+  salad_bar: '비건'
+}
+
+const getCategoriesFromApiTypes = (restaurant) => {
+  const typesJson = restaurant?.placeTypesJson
+  if (!typesJson) return ['식당']
+
+  try {
+    const types = typeof typesJson === 'string' ? JSON.parse(typesJson) : typesJson
+    if (!Array.isArray(types)) return ['식당']
+
+    const categories = []
+    const seen = new Set()
+    for (const type of types) {
+      const cat = PLACE_TYPE_TO_CATEGORY[type]
+      if (cat && !seen.has(cat)) {
+        seen.add(cat)
+        categories.push(cat)
+      }
+    }
+    return categories.length > 0 ? categories : ['식당']
+  } catch {
+    return ['식당']
+  }
 }
 
 // 추천 받기 버튼 클릭 핸들러
@@ -267,6 +379,7 @@ const handleCardSelect = (restaurant) => {
 const handleVoteCreate = () => {
   if (!restaurants.value.length) return
   if (!isLoggedIn.value) {
+    loginModalAction.value = 'vote-create'
     showLoginRequiredModal.value = true
     return
   }
@@ -291,10 +404,20 @@ const handleVoteCreate = () => {
 
 const closeLoginRequiredModal = () => {
   showLoginRequiredModal.value = false
+  loginModalAction.value = null
 }
 
 /** 로그인 필요 모달에서 "로그인하기" 클릭: 추천 데이터를 저장한 뒤 로그인 페이지로 이동. 로그인 후 투표 생성 페이지로 복귀하기 위함. */
 const goToLoginFromModal = () => {
+  const action = loginModalAction.value
+  loginModalAction.value = null
+
+  if (action !== 'vote-create') {
+    showLoginRequiredModal.value = false
+    router.push('/login')
+    return
+  }
+
   if (!restaurants.value.length) {
     showLoginRequiredModal.value = false
     router.push('/login')
@@ -348,7 +471,8 @@ const handleShare = (payload) => {
       distanceMeters: r?.distanceMeters || null,
       openNow: r?.openNow ?? null,
       googleMapsUri: r?.googleMapsUri || '',
-      categories: filterCategories
+      // Roulette 공유 페이지에서는 실제 장소 타입 기반 카테고리 사용
+      categories: getCategoriesFromApiTypes(r)
     }))
   }
 
@@ -372,7 +496,7 @@ const handleShare = (payload) => {
         :zoom="16"
         :markers="markers"
         :routes="routes"
-        @toggle-favorite="(restaurant) => { /* TODO: 즐겨찾기 연동 */ }"
+        @toggle-favorite="toggleFavoriteRestaurant"
         @refresh="handleRefresh"
       />
       <div v-else class="map-error">
@@ -384,10 +508,12 @@ const handleShare = (payload) => {
         :has-results="restaurants.length > 0"
         :restaurants="restaurants"
         :active-categories="(filters.foodTypes || []).map(id => FOOD_TYPE_TO_CATEGORY[id]).filter(Boolean)"
+        :favorite-ids="favoriteIds"
         @recommend="handleRecommend"
         @select="handleCardSelect"
         @roulette="rouletteOpen = true"
         @refresh="handleRefresh"
+        @toggle-favorite="toggleFavoriteRestaurant"
         @vote-create="handleVoteCreate"
       />
       <LunchRoulettePopup

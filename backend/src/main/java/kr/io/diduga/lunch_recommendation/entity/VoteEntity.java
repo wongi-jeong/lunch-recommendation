@@ -17,8 +17,7 @@ import java.time.Instant;
 public class VoteEntity {
 
 	public enum Status {
-		IN_PROGRESS,
-		ENDED
+		IN_PROGRESS, ENDED
 	}
 
 	@Id

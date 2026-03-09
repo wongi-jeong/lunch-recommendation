@@ -3,7 +3,7 @@ import { ref, onMounted, watch } from 'vue'
 import currentLocationIcon from '@/assets/current-location-icon.svg'
 import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
 import markerPinletIcon from '@/assets/marker-pin-icon.svg'
-import heartIcon from '@/assets/heart-icon.svg'
+import favoriteHeartIcon from '@/assets/favorite-heart-icon.svg'
 import refreshIcon from '@/assets/refresh-icon.svg'
 import externalLinkIcon from '@/assets/external-link-icon.svg'
 
@@ -442,7 +442,7 @@ const createInfoWindowContent = (markerData, index, opts = {}) => {
           border-radius: 50%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
           cursor: pointer; padding: 0;
         ">
-          <img src="${heartIcon}" alt="찜" style="width: 18px; height: 18px; filter: brightness(0) invert(1);" />
+          <img src="${favoriteHeartIcon}" alt="찜" style="width: 18px; height: 18px; filter: brightness(0) invert(1);" />
         </button>
       </div>
       <div class="iw-info" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">

@@ -51,13 +51,8 @@ public class VoteService {
 			throw new IllegalArgumentException("옵션 JSON 변환 실패", e);
 		}
 
-		VoteEntity entity = new VoteEntity(
-				id,
-				memberId,
-				request.getTitle(),
-				optionsJson,
-				request.getTimer() != null ? request.getTimer() : "none"
-		);
+		VoteEntity entity = new VoteEntity(id, memberId, request.getTitle(), optionsJson,
+				request.getTimer() != null ? request.getTimer() : "none");
 		VoteEntity saved = voteRepository.save(entity);
 		return VoteResponse.fromEntity(saved);
 	}
@@ -74,7 +69,8 @@ public class VoteService {
 	 */
 	public List<VoteResponse> getOngoing(String token) {
 		MemberResponse me = memberService.getMe(token);
-		List<VoteEntity> list = voteRepository.findByMemberIdAndStatusOrderByCreatedAtDesc(me.getId(), VoteEntity.Status.IN_PROGRESS);
+		List<VoteEntity> list = voteRepository.findByMemberIdAndStatusOrderByCreatedAtDesc(me.getId(),
+				VoteEntity.Status.IN_PROGRESS);
 		return list.stream().map(VoteResponse::fromEntity).collect(Collectors.toList());
 	}
 
@@ -83,7 +79,8 @@ public class VoteService {
 	 */
 	public List<VoteResponse> getEnded(String token) {
 		MemberResponse me = memberService.getMe(token);
-		List<VoteEntity> list = voteRepository.findByMemberIdAndStatusOrderByCreatedAtDesc(me.getId(), VoteEntity.Status.ENDED);
+		List<VoteEntity> list = voteRepository.findByMemberIdAndStatusOrderByCreatedAtDesc(me.getId(),
+				VoteEntity.Status.ENDED);
 		return list.stream().map(VoteResponse::fromEntity).collect(Collectors.toList());
 	}
 

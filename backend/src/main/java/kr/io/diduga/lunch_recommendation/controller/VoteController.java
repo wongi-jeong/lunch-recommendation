@@ -36,8 +36,7 @@ public class VoteController {
 	 * 투표 생성. 로그인 필요 (X-Auth-Token).
 	 */
 	@PostMapping
-	public ResponseEntity<VoteResponse> create(
-			@RequestHeader(value = "X-Auth-Token", required = false) String token,
+	public ResponseEntity<VoteResponse> create(@RequestHeader(value = "X-Auth-Token", required = false) String token,
 			@Valid @RequestBody VoteCreateRequest request) {
 		MemberService.InvalidCredentialsException.requireToken(token);
 		VoteResponse created = voteService.create(token, request);
@@ -49,9 +48,7 @@ public class VoteController {
 	 */
 	@GetMapping("/{id}")
 	public ResponseEntity<VoteResponse> getById(@PathVariable String id) {
-		return voteService.getById(id)
-				.map(ResponseEntity::ok)
-				.orElse(ResponseEntity.notFound().build());
+		return voteService.getById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
 	}
 
 	/**
@@ -80,8 +77,7 @@ public class VoteController {
 	 * 투표 종료하기.
 	 */
 	@PatchMapping("/{id}/end")
-	public ResponseEntity<VoteResponse> endVote(
-			@RequestHeader(value = "X-Auth-Token", required = false) String token,
+	public ResponseEntity<VoteResponse> endVote(@RequestHeader(value = "X-Auth-Token", required = false) String token,
 			@PathVariable String id) {
 		MemberService.InvalidCredentialsException.requireToken(token);
 		VoteResponse updated = voteService.endVote(token, id);
@@ -94,7 +90,8 @@ public class VoteController {
 	}
 
 	@ExceptionHandler(MemberService.InvalidCredentialsException.class)
-	public ResponseEntity<AuthController.ErrorResponse> handleUnauthorized(MemberService.InvalidCredentialsException ex) {
+	public ResponseEntity<AuthController.ErrorResponse> handleUnauthorized(
+			MemberService.InvalidCredentialsException ex) {
 		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new AuthController.ErrorResponse(ex.getMessage()));
 	}
 }

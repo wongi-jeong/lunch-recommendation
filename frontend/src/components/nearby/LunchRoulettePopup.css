@@ -12,7 +12,8 @@
 .roulette-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
   cursor: pointer;
 }
 
@@ -20,10 +21,10 @@
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 480px;
-  background: #ffffff;
+  max-width: 520px;
+  background: linear-gradient(180deg, #ffffff 0%, #fff7f2 100%);
   border-radius: 32px;
-  box-shadow: 0 0 48px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.14);
   padding: 40px;
   display: flex;
   flex-direction: column;
@@ -42,10 +43,10 @@
 
 .roulette-container {
   position: relative;
-  width: min(458px, calc(100vw - 48px));
+  width: min(460px, calc(100vw - 80px));
   aspect-ratio: 458 / 476;
   flex-shrink: 0;
-  margin-bottom: 24px;
+  margin: 0 auto 24px;
 }
 
 .roulette-wheel {
@@ -65,13 +66,14 @@
 
 .label-bg {
   fill: #ffffff;
-  stroke: #1b623a;
+  stroke: #dadce0;
   stroke-width: 1;
 }
 
 .label-bg.label-bg--winner {
   fill: #ff5531;
   stroke: none;
+  box-shadow: 0 4px 10px rgba(255, 85, 49, 0.4);
 }
 
 .label-text {
@@ -94,6 +96,7 @@
   height: 65px;
   object-fit: contain;
   pointer-events: none;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
 }
 
 .roulette-actions {

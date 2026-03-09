@@ -52,8 +52,7 @@ public class AuthController {
 	 * 로그인한 회원 정보 조회. 헤더 X-Auth-Token에 로그인 시 저장한 값(회원 ID 또는 이메일) 전달.
 	 */
 	@GetMapping("/me")
-	public ResponseEntity<MemberResponse> me(
-			@RequestHeader(value = "X-Auth-Token", required = false) String token) {
+	public ResponseEntity<MemberResponse> me(@RequestHeader(value = "X-Auth-Token", required = false) String token) {
 		MemberResponse member = memberService.getMe(token);
 		return ResponseEntity.ok(member);
 	}

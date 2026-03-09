@@ -98,9 +98,9 @@ public class VoteResponse {
 		dto.setCreatedAt(entity.getCreatedAt());
 		dto.setEndedAt(entity.getEndedAt());
 		try {
-			List<VoteCreateRequest.VoteOptionDto> options = OBJECT_MAPPER.readValue(
-					entity.getOptionsJson(),
-					new TypeReference<List<VoteCreateRequest.VoteOptionDto>>() {});
+			List<VoteCreateRequest.VoteOptionDto> options = OBJECT_MAPPER.readValue(entity.getOptionsJson(),
+					new TypeReference<List<VoteCreateRequest.VoteOptionDto>>() {
+					});
 			dto.setOptions(options);
 		} catch (Exception e) {
 			dto.setOptions(List.of());

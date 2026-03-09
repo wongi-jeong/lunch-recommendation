@@ -69,7 +69,8 @@ public class MemberService {
 	/**
 	 * 로그인 처리. 이메일·비밀번호 불일치 시 예외를 던진다.
 	 *
-	 * @param request 로그인 요청
+	 * @param request
+	 *            로그인 요청
 	 * @return 회원 정보
 	 */
 	public MemberResponse login(LoginRequest request) {
@@ -85,7 +86,8 @@ public class MemberService {
 	/**
 	 * 로그인한 회원 정보 조회. token은 로그인 시 저장한 회원 ID(문자열) 또는 이메일.
 	 *
-	 * @param token 세션에 저장된 authToken (회원 ID 또는 이메일)
+	 * @param token
+	 *            세션에 저장된 authToken (회원 ID 또는 이메일)
 	 * @return 회원 정보
 	 */
 	public MemberResponse getMe(String token) {
@@ -132,10 +134,7 @@ public class MemberService {
 	}
 
 	private MemberResponse toResponse(MemberEntity entity) {
-		return new MemberResponse(
-				entity.getId(),
-				entity.getEmail(),
-				entity.getCreatedAt(),
+		return new MemberResponse(entity.getId(), entity.getEmail(), entity.getCreatedAt(),
 				entity.getProfileImageIndex());
 	}
 

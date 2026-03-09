@@ -9,8 +9,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 앱 기동 시 member 테이블에 profile_image_index 컬럼이 없으면 추가.
- * Hibernate ddl-auto=update가 컬럼을 추가하지 못한 경우 대비.
+ * 앱 기동 시 member 테이블에 profile_image_index 컬럼이 없으면 추가. Hibernate ddl-auto=update가
+ * 컬럼을 추가하지 못한 경우 대비.
  */
 @Component
 @Order(1)

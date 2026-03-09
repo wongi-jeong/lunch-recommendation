@@ -43,21 +43,22 @@ const handleConfirm = () => {
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="16" cy="16" r="16" fill="#FF5531" />
               <path
-                d="M16 10v6M16 20v1"
+                d="M11 16.5l3 3 7-7"
                 stroke="white"
                 stroke-width="2"
                 stroke-linecap="round"
+                stroke-linejoin="round"
               />
             </svg>
           </div>
-          <p class="popup-title">로그인이 필요합니다</p>
+          <p class="popup-title">회원가입이 완료되었어요</p>
           <p class="popup-description">
-            이 기능을 사용하려면 로그인해 주세요.
+            이제 MECHU와 함께 점심 추천을 받아보세요.
           </p>
         </div>
         <div class="popup-action">
           <button class="popup-primary-btn" type="button" @click="handleConfirm">
-            로그인하러가기
+            확인
           </button>
         </div>
       </div>
@@ -204,3 +205,4 @@ const handleConfirm = () => {
   opacity: 0;
 }
 </style>
+
