@@ -22,6 +22,8 @@ const currentProfileImage = ref(profileAvatar1)
 const showProfileChangeModal = ref(false)
 const memberEmail = ref('')
 const emailLoadError = ref('')
+const ongoingVotes = ref([])
+const endedVotes = ref([])
 
 function applyProfileIndex(idx) {
   const n = typeof idx === 'number' ? idx : parseInt(idx, 10)
@@ -56,15 +58,65 @@ async function fetchMe() {
   }
 }
 
+async function fetchOngoingVotes() {
+  const token = getToken()
+  if (!token) return
+  try {
+    const res = await fetch('/api/votes/me/ongoing', {
+      headers: { 'X-Auth-Token': token },
+      cache: 'no-store'
+    })
+    if (res.ok) {
+      const data = await res.json()
+      ongoingVotes.value = Array.isArray(data) ? data : []
+    } else {
+      ongoingVotes.value = []
+    }
+  } catch {
+    ongoingVotes.value = []
+  }
+}
+
+async function fetchEndedVotes() {
+  const token = getToken()
+  if (!token) return
+  try {
+    const res = await fetch('/api/votes/me/ended', {
+      headers: { 'X-Auth-Token': token },
+      cache: 'no-store'
+    })
+    if (res.ok) {
+      const data = await res.json()
+      endedVotes.value = Array.isArray(data) ? data : []
+    } else {
+      endedVotes.value = []
+    }
+  } catch {
+    endedVotes.value = []
+  }
+}
+
+function formatVoteDate(isoString) {
+  if (!isoString) return ''
+  const d = new Date(isoString)
+  return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 watch(() => route.path, (path) => {
   if (path === '/my') {
     applyProfileIndex(authProfileIndex.value)
     fetchMe()
+    fetchOngoingVotes()
+    fetchEndedVotes()
   }
 }, { immediate: true })
 
 const handlePageshow = () => {
-  if (route.path === '/my') fetchMe()
+  if (route.path === '/my') {
+    fetchMe()
+    fetchOngoingVotes()
+    fetchEndedVotes()
+  }
 }
 
 onMounted(() => {
@@ -213,10 +265,21 @@ const currentProfileIndex = computed(() => {
 
       <section class="section" aria-labelledby="section-vote-title">
         <h2 id="section-vote-title" class="section-title">현재 진행중인 투표</h2>
-        <div class="section-contents section-contents--empty">
+        <div v-if="ongoingVotes.length === 0" class="section-contents section-contents--empty">
           <p class="empty-text">진행중인 투표가 없어요</p>
         </div>
-        <div class="pagination">
+        <div v-else class="section-contents section-contents--list">
+          <router-link
+            v-for="v in ongoingVotes"
+            :key="v.id"
+            :to="`/vote/${v.id}`"
+            class="vote-list-item"
+          >
+            <span class="vote-list-title">{{ v.title }}</span>
+            <span class="vote-list-date">{{ formatVoteDate(v.createdAt) }}</span>
+          </router-link>
+        </div>
+        <div v-if="ongoingVotes.length > 0" class="pagination">
           <button type="button" class="pagination-arrow" aria-label="이전">‹</button>
           <div class="pagination-page pagination-page--current">1</div>
           <button type="button" class="pagination-arrow" aria-label="다음">›</button>
@@ -238,8 +301,19 @@ const currentProfileIndex = computed(() => {
           <h2 id="section-result-title" class="section-title">최근 진행한 결과</h2>
           <button type="button" class="btn-ghost">전체보기</button>
         </div>
-        <div class="section-contents section-contents--empty">
+        <div v-if="endedVotes.length === 0" class="section-contents section-contents--empty">
           <p class="empty-text">진행한 결과가 없어요</p>
+        </div>
+        <div v-else class="section-contents section-contents--list">
+          <router-link
+            v-for="v in endedVotes"
+            :key="v.id"
+            :to="`/vote/${v.id}`"
+            class="vote-list-item"
+          >
+            <span class="vote-list-title">{{ v.title }}</span>
+            <span class="vote-list-date">{{ formatVoteDate(v.endedAt || v.createdAt) }}</span>
+          </router-link>
         </div>
       </section>
     </main>
@@ -307,7 +381,7 @@ const currentProfileIndex = computed(() => {
   color: #3c4043;
   margin: 0;
   white-space: nowrap;
-}
+} 
 
 .divider {
   width: 223px;
@@ -553,6 +627,50 @@ const currentProfileIndex = computed(() => {
   align-items: center;
   justify-content: center;
   min-height: 100px;
+}
+
+.section-contents--list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vote-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border: 1px solid #dadce0;
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.vote-list-item:hover {
+  border-color: #ff5531;
+  background-color: #fff5f3;
+}
+
+.vote-list-title {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  color: #3c4043;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+  margin-right: 12px;
+}
+
+.vote-list-date {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  color: #5f6368;
+  flex-shrink: 0;
 }
 
 .empty-text {

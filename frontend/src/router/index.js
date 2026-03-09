@@ -57,7 +57,7 @@ const routes = [
     path: '/vote/create',
     name: 'voteCreate',
     component: VoteCreatePage,
-    meta: { title: '투표 생성 - MECHU' }
+    meta: { title: '투표 생성 - MECHU', requiresAuth: true }
   },
   {
     path: '/vote/:id',

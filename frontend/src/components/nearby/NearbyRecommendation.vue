@@ -1,12 +1,15 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import GoogleMap from '../GoogleMap.vue'
 import FilterPanel from './FilterPanel.vue'
 import BottomSeat from '../BottomSeat.vue'
 import LunchRoulettePopup from './LunchRoulettePopup.vue'
+import LoginRequiredModal from '../LoginRequiredModal.vue'
 
 const router = useRouter()
+const { isLoggedIn } = useAuth()
 
 const apiKey = ref('')
 const filters = ref({
@@ -45,6 +48,8 @@ const restaurants = ref([])
 
 // 룰렛 팝업 표시
 const rouletteOpen = ref(false)
+// 로그인 필요 모달
+const showLoginRequiredModal = ref(false)
 
 // FilterPanel foodTypes id → 백엔드 categories(한글 라벨) 매핑
 const FOOD_TYPE_TO_CATEGORY = {
@@ -261,6 +266,10 @@ const handleCardSelect = (restaurant) => {
 
 const handleVoteCreate = () => {
   if (!restaurants.value.length) return
+  if (!isLoggedIn.value) {
+    showLoginRequiredModal.value = true
+    return
+  }
 
   const filterCategories = (filters.value.foodTypes || [])
     .map(id => FOOD_TYPE_TO_CATEGORY[id])
@@ -278,6 +287,39 @@ const handleVoteCreate = () => {
 
   const encoded = encodeURIComponent(JSON.stringify(data))
   router.push({ name: 'voteCreate', query: { data: encoded } })
+}
+
+const closeLoginRequiredModal = () => {
+  showLoginRequiredModal.value = false
+}
+
+/** 로그인 필요 모달에서 "로그인하기" 클릭: 추천 데이터를 저장한 뒤 로그인 페이지로 이동. 로그인 후 투표 생성 페이지로 복귀하기 위함. */
+const goToLoginFromModal = () => {
+  if (!restaurants.value.length) {
+    showLoginRequiredModal.value = false
+    router.push('/login')
+    return
+  }
+  const filterCategories = (filters.value.foodTypes || [])
+    .map(id => FOOD_TYPE_TO_CATEGORY[id])
+    .filter(Boolean)
+  const data = restaurants.value.map(r => ({
+    name: r.name || '',
+    googlePlaceId: r.googlePlaceId || '',
+    address: r.address || '',
+    photoName: r.photoName || null,
+    rating: typeof r.rating === 'number' ? r.rating : null,
+    openNow: r.openNow ?? null,
+    categories: filterCategories.length > 0 ? filterCategories : ['식당']
+  }))
+  const encoded = encodeURIComponent(JSON.stringify(data))
+  try {
+    sessionStorage.setItem('pendingVoteCreateData', encoded)
+  } catch (e) {
+    console.warn('pendingVoteCreateData 저장 실패', e)
+  }
+  showLoginRequiredModal.value = false
+  router.push({ path: '/login', query: { returnUrl: '/vote/create' } })
 }
 
 // 룰렛 결과 공유 페이지로 이동
@@ -352,6 +394,11 @@ const handleShare = (payload) => {
         v-model="rouletteOpen"
         :restaurants="restaurants"
         @share="handleShare"
+      />
+      <LoginRequiredModal
+        :visible="showLoginRequiredModal"
+        @close="closeLoginRequiredModal"
+        @confirm="goToLoginFromModal"
       />
     </div>
    <FilterPanel

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import VoteResultCard from './VoteResultCard.vue'
 import VoteOptionsList from './VoteOptionsList.vue'
 import VoteShareModal from './VoteShareModal.vue'
@@ -11,6 +12,7 @@ const VOTE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 const route = useRoute()
 const router = useRouter()
+const { getToken } = useAuth()
 const voteId = computed(() => route.params.id)
 
 const voteData = ref(null)
@@ -50,13 +52,25 @@ const cleanupSession = () => {
   }
 }
 
-const endVote = () => {
+const endVote = async () => {
   if (!voteData.value || voteEnded.value) return
   voteData.value.ended = true
   voteData.value.endedAt = new Date().toISOString()
   localStorage.setItem(`vote_${voteId.value}`, JSON.stringify(voteData.value))
   voteEnded.value = true
   cleanupSession()
+
+  const token = getToken()
+  if (token) {
+    try {
+      await fetch(`/api/votes/${voteId.value}/end`, {
+        method: 'PATCH',
+        headers: { 'X-Auth-Token': token }
+      })
+    } catch (e) {
+      console.error('투표 종료 API 호출 실패:', e)
+    }
+  }
 }
 
 const loadVote = async () => {
@@ -67,6 +81,18 @@ const loadVote = async () => {
     return
   }
   voteData.value = JSON.parse(stored)
+
+  // API에서 생성자 정보 보강 (예전 투표·다른 기기에서 만든 투표도 '투표 종료하기' 노출)
+  if (getToken()) {
+    try {
+      const res = await fetch(`/api/votes/${voteId.value}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.creatorMemberId != null) voteData.value.createdByMemberId = data.creatorMemberId
+      }
+    } catch (e) { /* 무시 */ }
+  }
+
   if (voteData.value.ended) {
     voteEnded.value = true
     cleanupSession()
@@ -317,6 +343,14 @@ const shareLink = computed(() => `${window.location.origin}/vote/${voteId.value}
 const copyShareLink = async () => {
   try { await navigator.clipboard.writeText(shareLink.value) } catch { /* silent */ }
 }
+
+/** 로그인한 투표 생성자만 true. 종료/삭제는 생성자만 가능 */
+const isCreator = computed(() => {
+  const token = getToken()
+  const creatorId = voteData.value?.createdByMemberId
+  if (!token || creatorId == null) return false
+  return String(creatorId) === String(token)
+})
 </script>
 
 <template>
@@ -334,6 +368,7 @@ const copyShareLink = async () => {
         :get-photo-url="getPhotoUrl"
         :handle-image-error="handleImageError"
         :get-business-status="getBusinessStatus"
+        @share="openShareModal('result')"
       />
 
       <!-- 투표 폼 -->
@@ -353,26 +388,23 @@ const copyShareLink = async () => {
               <span>투표가 종료되었습니다</span>
             </div>
           </div>
-          <!-- 톱니바퀴 아이콘 -->
-          <div class="settings-area" @click.stop>
+          <!-- 톱니바퀴(설정): 생성자만 표시, 종료/삭제 메뉴 -->
+          <div v-if="isCreator" class="settings-area" @click.stop>
             <button class="settings-btn" :class="{ 'settings-btn-disabled': voteEnded }" :disabled="voteEnded" @click="toggleSettings" aria-label="설정">
               <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M16 20a4 4 0 100-8 4 4 0 000 8z" stroke="#5F6368" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M25.9 20a2.18 2.18 0 00.44 2.4l.08.08a2.64 2.64 0 11-3.74 3.74l-.08-.08a2.18 2.18 0 00-2.4-.44 2.18 2.18 0 00-1.32 2v.26a2.64 2.64 0 11-5.28 0v-.14A2.18 2.18 0 0012.28 26a2.18 2.18 0 00-2.4.44l-.08.08a2.64 2.64 0 11-3.74-3.74l.08-.08a2.18 2.18 0 00.44-2.4A2.18 2.18 0 004.58 19h-.26a2.64 2.64 0 010-5.28h.14A2.18 2.18 0 006 12.28a2.18 2.18 0 00-.44-2.4l-.08-.08a2.64 2.64 0 113.74-3.74l.08.08a2.18 2.18 0 002.4.44h.1a2.18 2.18 0 001.32-2V4.32a2.64 2.64 0 015.28 0v.14a2.18 2.18 0 001.32 2 2.18 2.18 0 002.4-.44l.08-.08a2.64 2.64 0 113.74 3.74l-.08.08a2.18 2.18 0 00-.44 2.4v.1a2.18 2.18 0 002 1.32h.26a2.64 2.64 0 010 5.28h-.14a2.18 2.18 0 00-2 1.32z" stroke="#5F6368" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
-            <!-- 팝오버 -->
+            <!-- 팝오버: 종료 확인 / 삭제 메뉴·확인 -->
             <Transition name="popover-fade">
               <div v-if="popoverState !== 'none'" class="popover-card" @click.stop>
-                <!-- 사용자 설정 -->
                 <template v-if="popoverState === 'settings'">
-                  <p class="popover-title">사용자 설정</p>
-                  <div class="popover-btns">
-                    <button class="popover-btn popover-btn-outlined" @click="askEndVote">투표 종료하기</button>
-                    <button class="popover-btn popover-btn-ghost" @click="askDeleteVote">투표 삭제하기</button>
+                  <div class="popover-menu">
+                    <button v-if="!voteEnded" type="button" class="popover-menu-item" @click="askEndVote">투표 종료하기</button>
+                    <button type="button" class="popover-menu-item popover-menu-item-danger" @click="askDeleteVote">투표 삭제하기</button>
                   </div>
                 </template>
-                <!-- 투표 종료 확인 -->
                 <template v-if="popoverState === 'confirmEnd'">
                   <p class="popover-title">투표를 종료하시겠습니까?</p>
                   <div class="popover-btns">
@@ -380,7 +412,6 @@ const copyShareLink = async () => {
                     <button class="popover-btn popover-btn-ghost" @click="closePopover">아니요</button>
                   </div>
                 </template>
-                <!-- 투표 삭제 확인 -->
                 <template v-if="popoverState === 'confirmDelete'">
                   <p class="popover-title">투표를 삭제하시겠습니까?</p>
                   <div class="popover-btns">

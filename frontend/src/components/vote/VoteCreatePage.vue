@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import VoteCreateOptionList from './VoteCreateOptionList.vue'
 import VoteCreateTimerSection from './VoteCreateTimerSection.vue'
 import VoteCreatePopup from './VoteCreatePopup.vue'
@@ -8,6 +9,7 @@ import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
 
 const router = useRouter()
 const route = useRoute()
+const { getToken } = useAuth()
 
 const today = new Date()
 const defaultTitle = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 점심 메뉴 투표`
@@ -86,7 +88,7 @@ const openExternalLink = (restaurant) => {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
-const handleCreate = () => {
+const handleCreate = async () => {
   if (!canCreate.value) return
 
   const selected = restaurants.value
@@ -107,12 +109,40 @@ const handleCreate = () => {
     options: selected
   }
 
-  const voteId = crypto.randomUUID().slice(0, 8)
+  let voteId = crypto.randomUUID().slice(0, 8)
+  const token = getToken()
+  let createdByMemberId = null
+
+  if (token) {
+    try {
+      const res = await fetch('/api/votes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth-Token': token
+        },
+        body: JSON.stringify({ id: voteId, ...payload })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || '투표 생성에 실패했습니다.')
+      }
+      const data = await res.json()
+      if (data.id) voteId = data.id
+      if (data.creatorMemberId != null) createdByMemberId = data.creatorMemberId
+    } catch (e) {
+      console.error('투표 API 저장 실패:', e)
+      alert(e.message || '투표 저장에 실패했습니다. 다시 시도해주세요.')
+      return
+    }
+  }
+
   const voteRecord = {
     ...payload,
     id: voteId,
     createdAt: new Date().toISOString(),
-    voters: []
+    voters: [],
+    ...(createdByMemberId != null && { createdByMemberId })
   }
 
   localStorage.setItem(`vote_${voteId}`, JSON.stringify(voteRecord))
@@ -128,14 +158,6 @@ const closePopup = () => {
 const goToVote = () => {
   showPopup.value = false
   router.push(`/vote/${createdVoteId.value}`)
-}
-
-const copyShareLink = async () => {
-  try {
-    await navigator.clipboard.writeText(shareLink.value)
-  } catch {
-    // fallback: silent fail
-  }
 }
 
 const goBack = () => {
@@ -204,7 +226,6 @@ const goBack = () => {
       :visible="showPopup"
       @close="closePopup"
       @go-vote="goToVote"
-      @copy-link="copyShareLink"
     />
   </div>
 </template>

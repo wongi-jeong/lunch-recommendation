@@ -1,12 +1,12 @@
 <script setup>
-const props = defineProps({
+defineProps({
   visible: {
     type: Boolean,
     required: true
   }
 })
 
-const emit = defineEmits(['close', 'go-vote'])
+const emit = defineEmits(['close', 'confirm'])
 
 const handleOverlayClick = () => {
   emit('close')
@@ -16,8 +16,8 @@ const handleCloseClick = () => {
   emit('close')
 }
 
-const handleGoVote = () => {
-  emit('go-vote')
+const handleConfirm = () => {
+  emit('confirm')
 }
 </script>
 
@@ -26,7 +26,7 @@ const handleGoVote = () => {
     <div v-if="visible" class="popup-overlay" @click.self="handleOverlayClick">
       <div class="popup-card">
         <div class="popup-close-row">
-          <button class="popup-close-btn" @click="handleCloseClick" aria-label="닫기">
+          <button class="popup-close-btn" type="button" @click="handleCloseClick" aria-label="닫기">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path
                 d="M15 5L5 15M5 5l10 10"
@@ -43,21 +43,22 @@ const handleGoVote = () => {
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="16" cy="16" r="16" fill="#FF5531" />
               <path
-                d="M10 16.5l3.2 3.2L22 11"
+                d="M16 10v6M16 20v1"
                 stroke="white"
-                stroke-width="2.4"
+                stroke-width="2"
                 stroke-linecap="round"
-                stroke-linejoin="round"
               />
             </svg>
           </div>
-          <p class="popup-title">투표가 생성되었습니다!</p>
+          <p class="popup-title">로그인이 필요합니다</p>
           <p class="popup-description">
-            팀원들이 바로 참여할 수 있도록 아래 버튼으로 링크를 공유해 보세요.
+            이 기능을 사용하려면 로그인해 주세요.
           </p>
         </div>
         <div class="popup-action">
-          <button class="go-vote-btn" @click="handleGoVote">투표하러가기</button>
+          <button class="popup-primary-btn" type="button" @click="handleConfirm">
+            로그인하기
+          </button>
         </div>
       </div>
     </div>
@@ -159,7 +160,7 @@ const handleGoVote = () => {
   box-sizing: border-box;
 }
 
-.go-vote-btn {
+.popup-primary-btn {
   width: 100%;
   height: 64px;
   border: none;
@@ -174,7 +175,7 @@ const handleGoVote = () => {
   transition: background-color 0.15s;
 }
 
-.go-vote-btn:hover {
+.popup-primary-btn:hover {
   background-color: #e6442a;
 }
 

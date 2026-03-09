@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useCapsLock } from '@/composables/useCapsLock'
 import { useAuth } from '@/composables/useAuth'
 import visibilityIcon from '@/assets/visibility-icon.svg'
@@ -8,6 +8,7 @@ import visibilityOffIcon from '@/assets/visibility-off-icon.svg'
 import logoImage from '@/assets/logo-mechu.svg'
 
 const router = useRouter()
+const route = useRoute()
 const { setFromMemberResponse } = useAuth()
 
 const email = ref('')
@@ -59,7 +60,22 @@ const handleSubmit = async () => {
       return
     }
     setFromMemberResponse(data)
-    router.push('/')
+    const returnUrl = route.query.returnUrl
+    if (returnUrl === '/vote/create') {
+      const pendingData = sessionStorage.getItem('pendingVoteCreateData')
+      if (pendingData) {
+        try {
+          sessionStorage.removeItem('pendingVoteCreateData')
+        } catch (_) {}
+        router.push({ path: '/vote/create', query: { data: pendingData } })
+      } else {
+        router.push('/vote/create')
+      }
+    } else if (returnUrl && typeof returnUrl === 'string' && returnUrl.startsWith('/')) {
+      router.push(returnUrl)
+    } else {
+      router.push('/')
+    }
   } catch (err) {
     loginError.value = '네트워크 오류가 발생했습니다. 다시 시도해주세요.'
     showShake.value = true

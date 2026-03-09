@@ -158,5 +158,12 @@ public class MemberService {
 		public InvalidCredentialsException(String message) {
 			super(message);
 		}
+
+		/** 토큰이 없거나 비어 있으면 예외 발생. API에서 로그인 필수 시 사용. */
+		public static void requireToken(String token) {
+			if (token == null || token.isBlank()) {
+				throw new InvalidCredentialsException("로그인이 필요합니다.");
+			}
+		}
 	}
 }
