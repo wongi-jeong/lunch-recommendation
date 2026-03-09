@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { useAuth } from '@/composables/useAuth'
 
 const STORAGE_KEY = 'favoriteRestaurants'
 
@@ -31,6 +32,7 @@ function loadFromStorage() {
 }
 
 const favorites = ref(loadFromStorage())
+const { isLoggedIn, getToken } = useAuth()
 
 function saveToStorage() {
   if (typeof window === 'undefined') return
@@ -67,6 +69,38 @@ function addFavorite(item) {
   }
 
   saveToStorage()
+
+  // 로그인한 경우 서버에도 즐겨찾기 동기화
+  try {
+    if (isLoggedIn.value) {
+      const token = getToken()
+      if (token) {
+        const payload = {
+          id: item.id,
+          name: item.name ?? '',
+          address: item.address ?? '',
+          googleMapsUri: item.googleMapsUri ?? '',
+          latitude: item.latitude ?? null,
+          longitude: item.longitude ?? null,
+          rating: typeof item.rating === 'number' ? item.rating : null,
+          distanceMeters: item.distanceMeters ?? null,
+          photoName: item.photoName ?? null,
+          categories: Array.isArray(item.categories) ? item.categories : [],
+          favoritedAt: item.favoritedAt ?? Date.now()
+        }
+        fetch('/api/favorites', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Auth-Token': token
+          },
+          body: JSON.stringify(payload)
+        }).catch(() => {})
+      }
+    }
+  } catch {
+    // 네트워크 오류 등은 로컬 즐겨찾기에는 영향 주지 않음
+  }
 }
 
 function removeFavorite(id) {
@@ -75,6 +109,23 @@ function removeFavorite(id) {
   if (index === -1) return
   favorites.value.splice(index, 1)
   saveToStorage()
+
+  // 로그인한 경우 서버에서도 삭제
+  try {
+    if (isLoggedIn.value) {
+      const token = getToken()
+      if (token) {
+        fetch(`/api/favorites/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: {
+            'X-Auth-Token': token
+          }
+        }).catch(() => {})
+      }
+    }
+  } catch {
+    // 무시
+  }
 }
 
 function isFavorite(id) {

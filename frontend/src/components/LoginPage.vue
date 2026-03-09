@@ -16,7 +16,6 @@ const password = ref('')
 const showPassword = ref(false)
 const loginError = ref('')
 const isSubmitting = ref(false)
-const showShake = ref(false)
 const { isCapsLockOn, checkCapsLock } = useCapsLock()
 
 // 입력 시 에러 메시지 초기화 (최신 UX: 실수 수정 시 안내 제거)
@@ -55,8 +54,6 @@ const handleSubmit = async () => {
     const data = await res.json()
     if (!res.ok) {
       loginError.value = data.message || '로그인에 실패했습니다. 입력 정보를 확인해주세요.'
-      showShake.value = true
-      setTimeout(() => { showShake.value = false }, 500)
       return
     }
     setFromMemberResponse(data)
@@ -78,8 +75,6 @@ const handleSubmit = async () => {
     }
   } catch (err) {
     loginError.value = '네트워크 오류가 발생했습니다. 다시 시도해주세요.'
-    showShake.value = true
-    setTimeout(() => { showShake.value = false }, 500)
   } finally {
     isSubmitting.value = false
   }
@@ -102,7 +97,7 @@ const goToSignUp = () => {
         <button class="logo-button" type="button" aria-label="메인 페이지로 이동" @click="router.push('/')">
           <img :src="logoImage" alt="MECHU" class="logo-image" />
         </button>
-        <div class="login-card" :class="{ 'login-card--shake': showShake }">
+        <div class="login-card">
         <h1 class="login-title">로그인</h1>
 
         <!-- 로그인 실패 시: 최신 트렌드 인라인 알림 배너 (dismissible, 아이콘, 애니메이션) -->
@@ -304,7 +299,7 @@ const goToSignUp = () => {
 /* 로그인 실패 알림 배너 — 인라인, 닫기 가능, 부드러운 등장/퇴장 */
 .login-alert {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   padding: 14px 16px;
   margin-bottom: 20px;

@@ -12,6 +12,7 @@ const { isLoggedIn, clearAuth, getToken } = useAuth()
 const notifications = ref([])
 const hasUnreadNotification = ref(false)
 const showNotificationPopup = ref(false)
+const notificationWrapperRef = ref(null)
 let notificationTimer = null
 
 const VOTE_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -53,6 +54,8 @@ const syncNotifications = async () => {
   const seenSet = loadSeenNotifications(token)
   const endedVotes = []
 
+  // 1) 로컬에 남아 있는 "내가 만든 투표"들에 대해서는
+  //    타이머 기반 자동 종료 및 TTL 정리만 수행한다.
   const keys = Object.keys(localStorage).filter((k) => k.startsWith('vote_'))
 
   for (const key of keys) {
@@ -60,7 +63,7 @@ const syncNotifications = async () => {
       const vote = JSON.parse(localStorage.getItem(key))
       if (!vote || String(vote.createdByMemberId ?? '') !== String(token)) continue
 
-      // 오래된 종료 투표 정리
+      // 오래된 종료 투표는 로컬에서만 정리
       if (vote.ended && vote.endedAt) {
         const endedAtTime = new Date(vote.endedAt).getTime()
         if (!Number.isNaN(endedAtTime) && now - endedAtTime > VOTE_TTL_MS) {
@@ -99,17 +102,45 @@ const syncNotifications = async () => {
           }
         }
       }
-
-      if (!ended || !vote.endedAt) continue
-
-      endedVotes.push({
-        id: vote.id,
-        title: vote.title || '점심 메뉴 투표',
-        endedAt: vote.endedAt
-      })
     } catch {
       // corrupt entry, skip
     }
+  }
+
+  // 2) 실제 알림 목록은 서버 기준으로 구성한다.
+  try {
+    const res = await fetch('/api/votes/me/ended', {
+      headers: { 'X-Auth-Token': token }
+    })
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        notifications.value = []
+        hasUnreadNotification.value = false
+        return
+      }
+    } else {
+      const list = await res.json()
+      if (Array.isArray(list)) {
+        list.forEach((vote) => {
+          if (!vote || !vote.id) return
+          const endedAt = vote.endedAt || vote.createdAt
+          if (!endedAt) return
+          const endedAtTime = new Date(endedAt).getTime()
+          if (!Number.isNaN(endedAtTime) && now - endedAtTime > VOTE_TTL_MS) {
+            return
+          }
+          endedVotes.push({
+            id: vote.id,
+            title: vote.title || '점심 메뉴 투표',
+            endedAt,
+            isRead: seenSet.has(vote.id)
+          })
+        })
+      }
+    }
+  } catch {
+    // 서버 오류 시에는 기존 알림 상태를 유지
   }
 
   endedVotes.sort(
@@ -117,7 +148,7 @@ const syncNotifications = async () => {
   )
 
   notifications.value = endedVotes
-  hasUnreadNotification.value = endedVotes.some((n) => !seenSet.has(n.id))
+  hasUnreadNotification.value = endedVotes.some((n) => !n.isRead)
 }
 
 const toggleNotificationPopup = async () => {
@@ -128,20 +159,35 @@ const toggleNotificationPopup = async () => {
 
   if (!showNotificationPopup.value) {
     await syncNotifications()
-
-    const token = getToken()
-    const seenSet = loadSeenNotifications(token)
-    notifications.value.forEach((n) => seenSet.add(n.id))
-    saveSeenNotifications(token, seenSet)
-    hasUnreadNotification.value = false
   }
 
   showNotificationPopup.value = !showNotificationPopup.value
 }
 
+const handleGlobalClick = (event) => {
+  if (!showNotificationPopup.value) return
+  const wrapper = notificationWrapperRef.value
+  if (!wrapper) return
+  if (wrapper.contains(event.target)) return
+  showNotificationPopup.value = false
+}
+
 const goToVoteResultFromNotification = (id) => {
   showNotificationPopup.value = false
+
   if (id) {
+    const token = getToken()
+    if (token) {
+      const seenSet = loadSeenNotifications(token)
+      seenSet.add(id)
+      saveSeenNotifications(token, seenSet)
+    }
+
+    notifications.value = notifications.value.map((item) =>
+      item.id === id ? { ...item, isRead: true } : item
+    )
+    hasUnreadNotification.value = notifications.value.some((n) => !n.isRead)
+
     router.push(`/vote/${id}`)
   }
 }
@@ -150,6 +196,7 @@ onMounted(() => {
   getToken()
   syncNotifications()
   notificationTimer = setInterval(syncNotifications, 15000)
+  window.addEventListener('click', handleGlobalClick)
 })
 
 onUnmounted(() => {
@@ -157,6 +204,7 @@ onUnmounted(() => {
     clearInterval(notificationTimer)
     notificationTimer = null
   }
+  window.removeEventListener('click', handleGlobalClick)
 })
 
 const handleAuthButtonClick = () => {
@@ -232,7 +280,7 @@ const setActiveTab = (tab) => {
         </nav>
       </div>
       <div class="header-right">
-        <div class="notification-wrapper">
+        <div class="notification-wrapper" ref="notificationWrapperRef">
           <button
             class="user-button notification-button"
             type="button"
@@ -270,13 +318,20 @@ const setActiveTab = (tab) => {
                   <button
                     type="button"
                     class="notification-item-btn"
+                    :class="{ 'notification-item-btn-unread': !item.isRead }"
                     @click="goToVoteResultFromNotification(item.id)"
                   >
-                    <span class="notification-item-title">
+                    <span
+                      class="notification-item-title"
+                      :class="{ 'notification-item-title-unread': !item.isRead }"
+                    >
                       {{ item.title }}
                     </span>
-                    <span class="notification-item-meta">
-                      투표가 종료되었습니다
+                    <span
+                      class="notification-item-meta"
+                      :class="{ 'notification-item-meta-unread': !item.isRead }"
+                    >
+                      {{ item.isRead ? '투표가 종료되었습니다' : '새로운 종료된 투표입니다' }}
                     </span>
                   </button>
                 </li>
@@ -302,10 +357,13 @@ const setActiveTab = (tab) => {
   height: 80px;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
   background-color: #ffffff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
 }
 
 .header-container {
@@ -433,7 +491,7 @@ const setActiveTab = (tab) => {
   background-color: #ffffff;
   border-radius: 16px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  z-index: 20;
+  z-index: 1100;
 }
 
 .notification-title {
@@ -480,6 +538,10 @@ const setActiveTab = (tab) => {
   background-color: rgba(0, 0, 0, 0.03);
 }
 
+.notification-item-btn-unread {
+  background-color: rgba(255, 85, 49, 0.04);
+}
+
 .notification-item-title {
   font-family: 'Pretendard', sans-serif;
   font-weight: 600;
@@ -487,10 +549,18 @@ const setActiveTab = (tab) => {
   color: #202124;
 }
 
+.notification-item-title-unread {
+  font-weight: 700;
+}
+
 .notification-item-meta {
   font-family: 'Pretendard', sans-serif;
   font-size: 12px;
   color: #5f6368;
+}
+
+.notification-item-meta-unread {
+  color: #ff5531;
 }
 
 .popover-fade-enter-active,

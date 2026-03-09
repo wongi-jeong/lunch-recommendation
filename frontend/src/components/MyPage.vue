@@ -2,7 +2,6 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
-import { useFavorites } from '@/composables/useFavorites'
 import profileIcon from '@/assets/profile-icon.svg'
 import profileEditIcon from '@/assets/profile-edit-icon.svg'
 import profileAvatar1 from '@/assets/profile-avatar-1.png'
@@ -36,12 +35,12 @@ const endedPage = ref(1)
 const ROULETTE_HISTORY_KEY_PREFIX = 'rouletteHistory:'
 const rouletteHistory = ref([])
 
-// 즐겨찾기 (최근 즐겨찾기 한 장소)
-const { favorites, removeFavorite } = useFavorites()
+// 즐겨찾기 (최근 즐겨찾기 한 장소) - 회원 DB 기반
+const memberFavorites = ref([])
 
 const latestFavorites = computed(() => {
-  if (!favorites.value || favorites.value.length === 0) return []
-  return favorites.value.slice(0, 3)
+  if (!memberFavorites.value || memberFavorites.value.length === 0) return []
+  return memberFavorites.value.slice(0, 3)
 })
 
 const getFavoriteImage = (item) => {
@@ -80,7 +79,16 @@ const openFavoriteExternal = (item) => {
 
 const handleToggleFavoriteFromMyPage = (item) => {
   if (!item?.id) return
-  removeFavorite(item.id)
+  const token = getToken()
+  if (!token) return
+  fetch(`/api/favorites/${encodeURIComponent(item.id)}`, {
+    method: 'DELETE',
+    headers: {
+      'X-Auth-Token': token
+    }
+  })
+    .then(() => fetchMemberFavorites())
+    .catch(() => fetchMemberFavorites())
 }
 
 const totalOngoingPages = computed(() => {
@@ -238,6 +246,30 @@ async function loadRouletteHistory() {
   }
 }
 
+async function fetchMemberFavorites() {
+  const token = getToken()
+  if (!token) {
+    memberFavorites.value = []
+    return
+  }
+  try {
+    const res = await fetch('/api/favorites/me?limit=3', {
+      headers: {
+        'X-Auth-Token': token
+      },
+      cache: 'no-store'
+    })
+    if (!res.ok) {
+      memberFavorites.value = []
+      return
+    }
+    const data = await res.json()
+    memberFavorites.value = Array.isArray(data) ? data : []
+  } catch {
+    memberFavorites.value = []
+  }
+}
+
 watch(ongoingVotes, () => {
   ongoingPage.value = 1
 })
@@ -320,6 +352,7 @@ watch(() => route.path, (path) => {
     fetchOngoingVotes()
     fetchEndedVotes()
     loadRouletteHistory()
+    fetchMemberFavorites()
   }
 }, { immediate: true })
 
@@ -329,6 +362,7 @@ const handlePageshow = () => {
     fetchOngoingVotes()
     fetchEndedVotes()
     loadRouletteHistory()
+    fetchMemberFavorites()
   }
 }
 

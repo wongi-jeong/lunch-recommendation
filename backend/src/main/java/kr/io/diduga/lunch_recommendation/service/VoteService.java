@@ -3,11 +3,18 @@ package kr.io.diduga.lunch_recommendation.service;
 import kr.io.diduga.lunch_recommendation.dto.MemberResponse;
 import kr.io.diduga.lunch_recommendation.dto.VoteCreateRequest;
 import kr.io.diduga.lunch_recommendation.dto.VoteResponse;
+import kr.io.diduga.lunch_recommendation.dto.VoteStatsResponse;
+import kr.io.diduga.lunch_recommendation.dto.VoteSubmitRequest;
 import kr.io.diduga.lunch_recommendation.entity.VoteEntity;
+import kr.io.diduga.lunch_recommendation.entity.VoteRecordEntity;
+import kr.io.diduga.lunch_recommendation.repository.VoteRecordRepository;
 import kr.io.diduga.lunch_recommendation.repository.VoteRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,11 +28,14 @@ public class VoteService {
 
 	private final VoteRepository voteRepository;
 	private final MemberService memberService;
+	private final VoteRecordRepository voteRecordRepository;
 	private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
-	public VoteService(VoteRepository voteRepository, MemberService memberService) {
+	public VoteService(VoteRepository voteRepository, MemberService memberService,
+			VoteRecordRepository voteRecordRepository) {
 		this.voteRepository = voteRepository;
 		this.memberService = memberService;
+		this.voteRecordRepository = voteRecordRepository;
 	}
 
 	/**
@@ -55,6 +65,122 @@ public class VoteService {
 				request.getTimer() != null ? request.getTimer() : "none");
 		VoteEntity saved = voteRepository.save(entity);
 		return VoteResponse.fromEntity(saved);
+	}
+
+	/**
+	 * 개별 투표 참여.
+	 * - 로그인 사용자는 memberId 기준으로 1회만 허용
+	 * - 비로그인 사용자는 voterId/ fingerprint 기준으로 1회만 허용
+	 * 완료 후 최신 집계 정보를 반환.
+	 */
+	@Transactional
+	public VoteStatsResponse submitVote(String token, String voteId, VoteSubmitRequest request) {
+		VoteEntity entity = voteRepository.findById(voteId)
+				.orElseThrow(() -> new IllegalArgumentException("투표를 찾을 수 없습니다."));
+
+		if (entity.getStatus() == VoteEntity.Status.ENDED) {
+			throw new IllegalStateException("이미 종료된 투표입니다.");
+		}
+
+		VoteResponse base = VoteResponse.fromEntity(entity);
+		List<VoteCreateRequest.VoteOptionDto> options = base.getOptions();
+		if (options == null || options.isEmpty()) {
+			throw new IllegalStateException("투표 옵션이 존재하지 않습니다.");
+		}
+
+		Integer optionIndex = request.getOptionIndex();
+		if (optionIndex == null || optionIndex < 0 || optionIndex >= options.size()) {
+			throw new IllegalArgumentException("유효하지 않은 옵션입니다.");
+		}
+
+		Long memberId = null;
+		if (token != null && !token.isBlank()) {
+			MemberResponse me = memberService.getMe(token);
+			memberId = me.getId();
+		}
+
+		String voterId = request.getVoterId();
+		String fingerprint = request.getFingerprint();
+
+		boolean exists = false;
+		if (memberId != null && voteRecordRepository.existsByVoteIdAndMemberId(voteId, memberId)) {
+			exists = true;
+		}
+		if (!exists && voterId != null && !voterId.isBlank()
+				&& voteRecordRepository.existsByVoteIdAndAnonymousId(voteId, voterId)) {
+			exists = true;
+		}
+		if (!exists && fingerprint != null && !fingerprint.isBlank()
+				&& voteRecordRepository.existsByVoteIdAndFingerprint(voteId, fingerprint)) {
+			exists = true;
+		}
+
+		if (exists) {
+			throw new IllegalArgumentException("이미 이 투표에 참여하셨습니다.");
+		}
+
+		VoteRecordEntity record = new VoteRecordEntity(voteId, optionIndex, memberId, voterId, fingerprint);
+		voteRecordRepository.save(record);
+
+		return getStatsInternal(entity, base, token, voterId, fingerprint);
+	}
+
+	/**
+	 * 투표 상세 및 집계 정보 조회.
+	 * - token, voterId, fingerprint 를 모두 고려해 현재 사용자의 선택 옵션 index 도 함께 반환.
+	 */
+	@Transactional(readOnly = true)
+	public VoteStatsResponse getStats(String token, String voteId, String voterId, String fingerprint) {
+		VoteEntity entity = voteRepository.findById(voteId)
+				.orElseThrow(() -> new IllegalArgumentException("투표를 찾을 수 없습니다."));
+		VoteResponse base = VoteResponse.fromEntity(entity);
+		return getStatsInternal(entity, base, token, voterId, fingerprint);
+	}
+
+	private VoteStatsResponse getStatsInternal(VoteEntity entity, VoteResponse base, String token, String voterId,
+			String fingerprint) {
+		List<VoteRecordEntity> records = voteRecordRepository.findByVoteId(entity.getId());
+
+		int optionSize = base.getOptions() != null ? base.getOptions().size() : 0;
+		List<Integer> optionCounts = new ArrayList<>(Collections.nCopies(optionSize, 0));
+		for (VoteRecordEntity r : records) {
+			Integer idx = r.getOptionIndex();
+			if (idx != null && idx >= 0 && idx < optionSize) {
+				optionCounts.set(idx, optionCounts.get(idx) + 1);
+			}
+		}
+
+		Long memberId = null;
+		if (token != null && !token.isBlank()) {
+			try {
+				MemberResponse me = memberService.getMe(token);
+				memberId = me.getId();
+			} catch (MemberService.InvalidCredentialsException ex) {
+				// 토큰이 유효하지 않은 경우: 로그인 사용자 아님으로 처리
+			}
+		}
+
+		Integer myIndex = null;
+		Optional<VoteRecordEntity> mine = Optional.empty();
+		if (memberId != null) {
+			mine = voteRecordRepository.findFirstByVoteIdAndMemberId(entity.getId(), memberId);
+		}
+		if (mine.isEmpty() && voterId != null && !voterId.isBlank()) {
+			mine = voteRecordRepository.findFirstByVoteIdAndAnonymousId(entity.getId(), voterId);
+		}
+		if (mine.isEmpty() && fingerprint != null && !fingerprint.isBlank()) {
+			mine = voteRecordRepository.findFirstByVoteIdAndFingerprint(entity.getId(), fingerprint);
+		}
+		if (mine.isPresent()) {
+			myIndex = mine.get().getOptionIndex();
+		}
+
+		VoteStatsResponse stats = new VoteStatsResponse();
+		stats.setVote(base);
+		stats.setTotalVoters(records.size());
+		stats.setOptionCounts(optionCounts);
+		stats.setMyOptionIndex(myIndex);
+		return stats;
 	}
 
 	/**
@@ -99,7 +225,7 @@ public class VoteService {
 			return VoteResponse.fromEntity(entity);
 		}
 		entity.setStatus(VoteEntity.Status.ENDED);
-		entity.setEndedAt(java.time.Instant.now());
+		entity.setEndedAt(Instant.now());
 		VoteEntity saved = voteRepository.save(entity);
 		return VoteResponse.fromEntity(saved);
 	}

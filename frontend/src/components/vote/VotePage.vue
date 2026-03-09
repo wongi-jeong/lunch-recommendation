@@ -37,7 +37,9 @@ const purgeExpiredVotes = () => {
       if (data?.ended && data?.endedAt && now - new Date(data.endedAt).getTime() > VOTE_TTL_MS) {
         localStorage.removeItem(key)
       }
-    } catch { /* skip corrupt entries */ }
+    } catch {
+      // skip corrupt entries
+    }
   }
 }
 
@@ -73,24 +75,66 @@ const endVote = async () => {
   }
 }
 
+const applyStats = (stats) => {
+  if (!stats || !stats.vote) return
+  const base = stats.vote
+  voteData.value = {
+    ...(voteData.value || {}),
+    id: base.id,
+    title: base.title,
+    options: base.options || [],
+    timer: base.timer || 'none',
+    createdAt: base.createdAt,
+    ended: base.status === 'ENDED',
+    endedAt: base.endedAt,
+    createdByMemberId: base.creatorMemberId,
+    totalVoters: stats.totalVoters ?? 0,
+    optionCounts: stats.optionCounts || []
+  }
+  voteEnded.value = voteData.value.ended === true
+  selectedIndex.value = stats.myOptionIndex ?? null
+  hasVoted.value = stats.myOptionIndex != null
+}
+
+const fetchStats = async () => {
+  try {
+    const params = new URLSearchParams()
+    if (identity?.voterId) params.append('voterId', identity.voterId)
+    if (identity?.fingerprint) params.append('fp', identity.fingerprint)
+
+    const token = getToken()
+    const res = await fetch(`/api/votes/${voteId.value}/stats?${params.toString()}`, {
+      headers: token
+        ? { 'X-Auth-Token': token }
+        : {}
+    })
+    if (!res.ok) return
+    const data = await res.json()
+    applyStats(data)
+  } catch (e) {
+    console.error('투표 집계 정보 조회 실패:', e)
+  }
+}
+
 const loadVote = async () => {
   const stored = localStorage.getItem(`vote_${voteId.value}`)
-  if (!stored) {
-    voteData.value = null
+  if (stored) {
+    try {
+      voteData.value = JSON.parse(stored)
+    } catch {
+      voteData.value = null
+    }
+  }
+
+  if (!identity) {
+    identity = await getVoterIdentity()
+  }
+
+  await fetchStats()
+
+  if (!voteData.value) {
     isLoading.value = false
     return
-  }
-  voteData.value = JSON.parse(stored)
-
-  // API에서 생성자 정보 보강 (예전 투표·다른 기기에서 만든 투표도 '투표 종료하기' 노출)
-  if (getToken()) {
-    try {
-      const res = await fetch(`/api/votes/${voteId.value}`)
-      if (res.ok) {
-        const data = await res.json()
-        if (data.creatorMemberId != null) voteData.value.createdByMemberId = data.creatorMemberId
-      }
-    } catch (e) { /* 무시 */ }
   }
 
   if (voteData.value.ended) {
@@ -100,19 +144,6 @@ const loadVote = async () => {
     return
   }
 
-  if (!identity) {
-    identity = await getVoterIdentity()
-  }
-
-  const existingVote = findExistingVote(
-    voteData.value.voters,
-    identity.voterId,
-    identity.fingerprint
-  )
-  if (existingVote) {
-    hasVoted.value = true
-    selectedIndex.value = existingVote.optionIndex
-  }
   setupTimer()
   isLoading.value = false
 }
@@ -160,10 +191,17 @@ onUnmounted(() => {
   cleanupSession()
 })
 
-const totalVoters = computed(() => (voteData.value?.voters || []).length)
+const totalVoters = computed(() => {
+  if (voteData.value?.totalVoters != null) return voteData.value.totalVoters
+  return (voteData.value?.voters || []).length
+})
 
 const getPercentage = (index) => {
   if (!voteData.value || totalVoters.value === 0) return 0
+  if (Array.isArray(voteData.value.optionCounts) && voteData.value.optionCounts.length > index) {
+    const count = voteData.value.optionCounts[index] || 0
+    return Math.round((count / totalVoters.value) * 100)
+  }
   const count = (voteData.value.voters || []).filter(v => v.optionIndex === index).length
   return Math.round((count / totalVoters.value) * 100)
 }
@@ -172,7 +210,9 @@ const winnerIndex = computed(() => {
   if (!voteData.value || totalVoters.value === 0) return 0
   let maxCount = 0, maxIdx = 0
   voteData.value.options.forEach((_, i) => {
-    const count = (voteData.value.voters || []).filter(v => v.optionIndex === i).length
+    const count = Array.isArray(voteData.value.optionCounts) && voteData.value.optionCounts.length > i
+      ? voteData.value.optionCounts[i] || 0
+      : (voteData.value.voters || []).filter(v => v.optionIndex === i).length
     if (count > maxCount) { maxCount = count; maxIdx = i }
   })
   return maxIdx
@@ -188,33 +228,69 @@ const selectOption = (index) => {
   selectedIndex.value = selectedIndex.value === index ? null : index
 }
 
-const submitVote = () => {
+const submitVote = async () => {
   if (hasVoted.value || voteEnded.value || !identity) return
   if (selectedIndex.value === null) { showError.value = true; return }
-  if (!voteData.value.voters) voteData.value.voters = []
 
-  const existing = findExistingVote(
-    voteData.value.voters,
-    identity.voterId,
-    identity.fingerprint
-  )
-  if (existing) {
-    const idx = voteData.value.voters.indexOf(existing)
-    voteData.value.voters[idx] = {
-      voterId: identity.voterId,
-      fingerprint: identity.fingerprint,
-      optionIndex: selectedIndex.value
-    }
-  } else {
-    voteData.value.voters.push({
-      voterId: identity.voterId,
-      fingerprint: identity.fingerprint,
-      optionIndex: selectedIndex.value
+  const token = getToken()
+
+  try {
+    const res = await fetch(`/api/votes/${voteId.value}/vote`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'X-Auth-Token': token } : {})
+      },
+      body: JSON.stringify({
+        optionIndex: selectedIndex.value,
+        voterId: identity.voterId,
+        fingerprint: identity.fingerprint
+      })
     })
+
+    if (!res.ok) {
+      if (res.status === 404) {
+        // 서버에 저장되지 않은 오래된/비로그인 생성 투표: 기존 로컬 방식으로 fallback
+        if (!voteData.value.voters) voteData.value.voters = []
+        const existing = findExistingVote(
+          voteData.value.voters,
+          identity.voterId,
+          identity.fingerprint
+        )
+        if (existing) {
+          const idx = voteData.value.voters.indexOf(existing)
+          voteData.value.voters[idx] = {
+            voterId: identity.voterId,
+            fingerprint: identity.fingerprint,
+            optionIndex: selectedIndex.value
+          }
+        } else {
+          voteData.value.voters.push({
+            voterId: identity.voterId,
+            fingerprint: identity.fingerprint,
+            optionIndex: selectedIndex.value
+          })
+        }
+        localStorage.setItem(`vote_${voteId.value}`, JSON.stringify(voteData.value))
+        hasVoted.value = true
+        showError.value = false
+        return
+      }
+      const err = await res.json().catch(() => ({}))
+      alert(err.message || '투표에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
+
+    const data = await res.json()
+    applyStats(data)
+    // 서버 집계 정보 기반으로 voteData를 덮어썼으므로 로컬 캐시도 최신 상태로 동기화
+    localStorage.setItem(`vote_${voteId.value}`, JSON.stringify(voteData.value))
+    hasVoted.value = true
+    showError.value = false
+  } catch (e) {
+    console.error('투표 API 호출 실패:', e)
+    alert('투표 중 오류가 발생했습니다. 다시 시도해주세요.')
   }
-  localStorage.setItem(`vote_${voteId.value}`, JSON.stringify(voteData.value))
-  hasVoted.value = true
-  showError.value = false
 }
 
 const toggleSettings = () => {

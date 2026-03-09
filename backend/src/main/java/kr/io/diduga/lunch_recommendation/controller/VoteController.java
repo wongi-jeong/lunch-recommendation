@@ -3,6 +3,8 @@ package kr.io.diduga.lunch_recommendation.controller;
 import jakarta.validation.Valid;
 import kr.io.diduga.lunch_recommendation.dto.VoteCreateRequest;
 import kr.io.diduga.lunch_recommendation.dto.VoteResponse;
+import kr.io.diduga.lunch_recommendation.dto.VoteStatsResponse;
+import kr.io.diduga.lunch_recommendation.dto.VoteSubmitRequest;
 import kr.io.diduga.lunch_recommendation.service.MemberService;
 import kr.io.diduga.lunch_recommendation.service.VoteService;
 import org.springframework.http.HttpStatus;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -47,8 +50,37 @@ public class VoteController {
 	 * 투표 단건 조회 (생성자 정보 등). 인증 없이 조회 가능.
 	 */
 	@GetMapping("/{id}")
-	public ResponseEntity<VoteResponse> getById(@PathVariable String id) {
+	public ResponseEntity<VoteResponse> getById(@PathVariable("id") String id) {
 		return voteService.getById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+	}
+
+	/**
+	 * 투표 상세 + 집계 정보 조회. 인증 없이도 가능하며, 로그인/비로그인 사용자 모두에 대해
+	 * 현재 사용자가 이미 투표했는지 여부(myOptionIndex)를 함께 반환한다.
+	 */
+	@GetMapping("/{id}/stats")
+	public ResponseEntity<VoteStatsResponse> getStats(
+			@RequestHeader(value = "X-Auth-Token", required = false) String token,
+			@PathVariable("id") String id,
+			@RequestParam(value = "voterId", required = false) String voterId,
+			@RequestParam(value = "fp", required = false) String fingerprint) {
+		VoteStatsResponse stats = voteService.getStats(token, id, voterId, fingerprint);
+		return ResponseEntity.ok(stats);
+	}
+
+	/**
+	 * 개별 투표 참여. 로그인/비로그인 공통.
+	 * - 로그인 사용자는 memberId 기준으로 1회만 허용
+	 * - 비로그인 사용자는 voterId / fingerprint 기준으로 1회만 허용
+	 * 성공 시 최신 집계 정보를 반환한다.
+	 */
+	@PostMapping("/{id}/vote")
+	public ResponseEntity<VoteStatsResponse> submitVote(
+			@RequestHeader(value = "X-Auth-Token", required = false) String token,
+			@PathVariable("id") String id,
+			@Valid @RequestBody VoteSubmitRequest request) {
+		VoteStatsResponse stats = voteService.submitVote(token, id, request);
+		return ResponseEntity.ok(stats);
 	}
 
 	/**
@@ -78,7 +110,7 @@ public class VoteController {
 	 */
 	@PatchMapping("/{id}/end")
 	public ResponseEntity<VoteResponse> endVote(@RequestHeader(value = "X-Auth-Token", required = false) String token,
-			@PathVariable String id) {
+			@PathVariable("id") String id) {
 		MemberService.InvalidCredentialsException.requireToken(token);
 		VoteResponse updated = voteService.endVote(token, id);
 		return ResponseEntity.ok(updated);
@@ -86,6 +118,11 @@ public class VoteController {
 
 	@ExceptionHandler(IllegalArgumentException.class)
 	public ResponseEntity<AuthController.ErrorResponse> handleBadRequest(IllegalArgumentException ex) {
+		return ResponseEntity.badRequest().body(new AuthController.ErrorResponse(ex.getMessage()));
+	}
+
+	@ExceptionHandler(IllegalStateException.class)
+	public ResponseEntity<AuthController.ErrorResponse> handleIllegalState(IllegalStateException ex) {
 		return ResponseEntity.badRequest().body(new AuthController.ErrorResponse(ex.getMessage()));
 	}
 
