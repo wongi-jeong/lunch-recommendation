@@ -82,7 +82,7 @@
         <div class="roulette-actions">
           <template v-if="phase === 'result'">
             <button type="button" class="btn-share" @click="handleShare">
-              결과 공유하기
+              결과 저장하기
             </button>
             <button type="button" class="btn-respin" @click="handleRespin">
               다시 돌리기

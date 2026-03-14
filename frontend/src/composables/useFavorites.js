@@ -157,6 +157,14 @@ function isFavorite(id) {
 }
 
 /**
+ * 로그아웃 시 호출. 메모리의 서버 즐겨찾기를 비우고 로컬스토리지 기준으로만 다시 채움.
+ * 로그아웃 후에도 이전 계정의 즐겨찾기가 남아 보이는 현상 방지.
+ */
+function resetOnLogout() {
+  favorites.value = loadFromStorage()
+}
+
+/**
  * 로그인 사용자의 즐겨찾기를 서버(DB)에서 불러와 로컬 상태에 반영.
  * 바텀시트 추천 목록에서 이미 즐겨찾기한 식당이 하트로 표시되도록 할 때 사용.
  */
@@ -204,6 +212,7 @@ export function useFavorites() {
     addFavorite,
     removeFavorite,
     isFavorite,
+    resetOnLogout,
     syncFromServer
   }
 }

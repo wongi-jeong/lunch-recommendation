@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import wheelAccessory from '@/assets/icon-roulette-wheel.svg'
@@ -7,6 +7,7 @@ import roulettePointer from '@/assets/icon-roulette-pointer.svg'
 import externalLinkIcon from '@/assets/icon-external-link.svg'
 import starIcon from '@/assets/icon-star.svg'
 import defaultThumbnail from '@/assets/img-placeholder-restaurant.png'
+import VoteShareModal from '@/components/vote/VoteShareModal.vue'
 
 const SEGMENT_COLORS_2 = ['#D9F0E0', '#5FCB7F']
 const SEGMENT_COLORS_3 = ['#5BC086', '#A1D9B7', '#E7F6ED']
@@ -113,6 +114,64 @@ function openGoogleMaps() {
 
 function handleBack() {
   router.push({ name: 'nearby' })
+}
+
+// 공유 모달 (투표 페이지와 동일한 방식)
+const showShareModal = ref(false)
+const resultPageLink = computed(() =>
+  typeof window !== 'undefined' ? window.location.href : ''
+)
+const shareText = computed(() =>
+  winnerName.value
+    ? `오늘 점심은 "${winnerName.value}"! 룰렛 결과를 확인해보세요.`
+    : '룰렛 결과를 확인해보세요.'
+)
+
+const copyModalLink = async () => {
+  try {
+    await navigator.clipboard.writeText(resultPageLink.value)
+    triggerToast()
+  } catch { /* silent */ }
+}
+
+const shareToKakao = () => {
+  window.open(
+    `https://sharer.kakao.com/talk/friends/picker/link?url=${encodeURIComponent(resultPageLink.value)}&text=${encodeURIComponent(shareText.value)}`,
+    '_blank',
+    'width=600,height=700'
+  )
+}
+const shareToFacebook = () => {
+  window.open(
+    `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(resultPageLink.value)}`,
+    '_blank',
+    'width=600,height=500'
+  )
+}
+const shareToX = () => {
+  window.open(
+    `https://x.com/intent/post?text=${encodeURIComponent(shareText.value)}&url=${encodeURIComponent(resultPageLink.value)}`,
+    '_blank',
+    'width=600,height=500'
+  )
+}
+const shareToBand = () => {
+  window.open(
+    `https://band.us/plugin/share?body=${encodeURIComponent(shareText.value + '\n' + resultPageLink.value)}`,
+    '_blank',
+    'width=600,height=500'
+  )
+}
+const shareToEmail = () => {
+  window.location.href = `mailto:?subject=${encodeURIComponent('룰렛 결과 공유')}&body=${encodeURIComponent(shareText.value + '\n\n' + resultPageLink.value)}`
+}
+
+const showToast = ref(false)
+let toastTimer = null
+const triggerToast = () => {
+  showToast.value = true
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { showToast.value = false }, 2000)
 }
 
 // ── Roulette wheel (static) ──
@@ -265,7 +324,33 @@ const wheelRotation = computed(() => {
             </button>
           </div>
         </article>
+
+        <button
+          type="button"
+          class="btn-copy-link"
+          aria-label="결과 링크 공유"
+          @click="showShareModal = true"
+        >
+          결과 링크 공유하기
+        </button>
       </section>
+
+      <VoteShareModal
+        :visible="showShareModal"
+        title="룰렛 결과 공유"
+        :link="resultPageLink"
+        @close="showShareModal = false"
+        @share-kakao="shareToKakao"
+        @share-facebook="shareToFacebook"
+        @share-x="shareToX"
+        @share-band="shareToBand"
+        @share-email="shareToEmail"
+        @copy-link="copyModalLink"
+      />
+
+      <Transition name="toast-fade">
+        <div v-if="showToast" class="copy-toast">링크가 클립보드에 복사되었습니다</div>
+      </Transition>
 
       <!-- Right: static roulette wheel -->
       <section class="share-right" aria-label="룰렛 결과">
@@ -505,6 +590,32 @@ const wheelRotation = computed(() => {
   display: block;
 }
 
+.btn-copy-link {
+  width: 100%;
+  max-width: 384px;
+  height: 56px;
+  padding: 0 24px;
+  border-radius: 16px;
+  border: none;
+  background-color: #fff0ea;
+  color: #ff5531;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.btn-copy-link:hover {
+  background-color: #ffe0d6;
+}
+
+.btn-copy-link:focus-visible {
+  outline: 2px solid #ff5531;
+  outline-offset: 2px;
+}
+
 /* ── Right: roulette wheel ── */
 .share-right {
   width: 458px;
@@ -642,5 +753,198 @@ const wheelRotation = computed(() => {
     height: 52px;
     top: -16px;
   }
+}
+</style>
+
+<!-- 공유 모달·토스트 스타일 (VoteShareModal / VotePage와 동일) -->
+<style>
+.share-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-modal {
+  background-color: #fff;
+  border-radius: 24px;
+  width: 100%;
+  max-width: 480px;
+  padding: 24px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.share-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.share-modal-title {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  color: #202124;
+}
+
+.share-modal-close {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.share-modal-close:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.share-platforms {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 6px 4px;
+}
+
+.share-platform-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.share-platform-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.share-platform-btn:hover .share-platform-icon {
+  transform: scale(1.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.share-platform-btn:active .share-platform-icon {
+  transform: scale(0.95);
+}
+
+.share-platform-btn span {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  color: #5f6368;
+  white-space: nowrap;
+}
+
+.share-link-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  border: 1px solid #dadce0;
+  border-radius: 12px;
+  padding: 0 6px 0 16px;
+  background-color: #f8f9fa;
+}
+
+.share-link-box-text {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: #5f6368;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-link-copy-btn {
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 10px;
+  background-color: #ff5531;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.share-link-copy-btn:hover {
+  background-color: #e6442a;
+}
+
+.share-modal-fade-enter-active,
+.share-modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.share-modal-fade-enter-active .share-modal,
+.share-modal-fade-leave-active .share-modal {
+  transition: transform 0.2s ease;
+}
+
+.share-modal-fade-enter-from,
+.share-modal-fade-leave-to {
+  opacity: 0;
+}
+
+.share-modal-fade-enter-from .share-modal,
+.share-modal-fade-leave-to .share-modal {
+  transform: scale(0.95);
+}
+
+.copy-toast {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #202124;
+  color: #fff;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  padding: 12px 24px;
+  border-radius: 12px;
+  z-index: 1000;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+}
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
 }
 </style>

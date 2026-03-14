@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useFavorites } from '@/composables/useFavorites'
 import profileIcon from '@/assets/icon-profile-default.svg'
 import logoImage from '@/assets/logo-mechu.svg'
 import profileAvatar1 from '@/assets/avatar-1.png'
@@ -16,6 +17,7 @@ import profileAvatar8 from '@/assets/avatar-8.png'
 const router = useRouter()
 const route = useRoute()
 const { isLoggedIn, clearAuth, getToken, profileImageIndex } = useAuth()
+const { resetOnLogout } = useFavorites()
 
 const profileOptions = [profileAvatar1, profileAvatar2, profileAvatar3, profileAvatar4, profileAvatar5, profileAvatar6, profileAvatar7, profileAvatar8]
 const headerProfileImage = computed(() => {
@@ -208,6 +210,7 @@ onUnmounted(() => {
 const handleAuthButtonClick = () => {
   if (isLoggedIn.value) {
     clearAuth()
+    resetOnLogout()
     if (route.meta.requiresAuth) {
       router.replace('/')
     }

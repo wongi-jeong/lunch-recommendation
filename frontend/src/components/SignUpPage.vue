@@ -39,11 +39,13 @@ const isFormValid = computed(() =>
 
 const isSubmitting = ref(false)
 const submitError = ref('')
+const emailDuplicateError = ref('')
 
 const handleSubmit = async () => {
   if (!isFormValid.value || isSubmitting.value) return
   isSubmitting.value = true
   submitError.value = ''
+  emailDuplicateError.value = ''
   try {
     const res = await fetch('/api/auth/signup', {
       method: 'POST',
@@ -55,7 +57,12 @@ const handleSubmit = async () => {
     })
     const data = await res.json()
     if (!res.ok) {
-      submitError.value = data.message || '회원가입에 실패했습니다. 다시 시도해주세요.'
+      const msg = data.message || '회원가입에 실패했습니다. 다시 시도해주세요.'
+      if (res.status === 409 || (msg && msg.includes('이미 등록된'))) {
+        emailDuplicateError.value = msg
+      } else {
+        submitError.value = msg
+      }
       return
     }
     router.push('/signup/complete')
@@ -95,8 +102,9 @@ const goToLogin = () => {
                 placeholder="이메일을 입력해주세요"
                 autocomplete="email"
                 aria-required="true"
-                aria-invalid="!isEmailValid && email.length > 0"
-                aria-describedby="email-error"
+                aria-invalid="(!isEmailValid && email.length > 0) || !!emailDuplicateError"
+                aria-describedby="email-error email-duplicate-error"
+                @input="emailDuplicateError = ''"
               />
             </div>
             <p v-if="email.length > 0 && !isEmailValid" id="email-error" class="form-error" role="alert">
@@ -110,6 +118,9 @@ const goToLogin = () => {
               >
                 {{ emailSuggestion }}로 적용
               </button>
+            </p>
+            <p v-if="emailDuplicateError" id="email-duplicate-error" class="form-error" role="alert">
+              {{ emailDuplicateError }}
             </p>
           </div>
 

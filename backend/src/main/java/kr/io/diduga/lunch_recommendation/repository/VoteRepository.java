@@ -12,4 +12,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface VoteRepository extends JpaRepository<VoteEntity, String> {
 
 	List<VoteEntity> findByMemberIdAndStatusOrderByCreatedAtDesc(Long memberId, VoteEntity.Status status);
+
+	List<VoteEntity> findByMemberId(Long memberId);
+
+	void deleteByMemberId(Long memberId);
 }

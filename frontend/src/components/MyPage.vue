@@ -19,11 +19,11 @@ import ProfileChangeModal from '@/components/ProfileChangeModal.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { getToken, profileImageIndex: authProfileIndex, setProfileImageIndex: setAuthProfileIndex } = useAuth()
+const { getToken, clearAuth, profileImageIndex: authProfileIndex, setProfileImageIndex: setAuthProfileIndex } = useAuth()
 const profileOptions = [profileAvatar1, profileAvatar2, profileAvatar3, profileAvatar4, profileAvatar5, profileAvatar6, profileAvatar7, profileAvatar8]
 
 const currentProfileImage = ref(profileAvatar1)
-const { removeFavorite: removeLocalFavorite } = useFavorites()
+const { removeFavorite: removeLocalFavorite, resetOnLogout } = useFavorites()
 const showProfileChangeModal = ref(false)
 const memberEmail = ref('')
 const emailLoadError = ref('')
@@ -559,6 +559,68 @@ function syncSectionFromRoute() {
   }
 }
 
+// 회원 탈퇴 (비밀번호는 한 번만 입력, 서버 DB에서 검증)
+const withdrawPassword = ref('')
+const withdrawReasonCode = ref('')
+const withdrawAgree = ref(false)
+const withdrawError = ref('')
+const withdrawSubmitting = ref(false)
+
+const WITHDRAW_REASONS = [
+  { value: '', label: '선택하지 않음' },
+  { value: 'no_use', label: '서비스를 잘 사용하지 않음' },
+  { value: 'another_service', label: '다른 서비스를 이용할 예정' },
+  { value: 'privacy', label: '개인정보가 걱정됨' },
+  { value: 'unsatisfied', label: '서비스가 마음에 들지 않음' },
+  { value: 'other', label: '기타' }
+]
+
+const canSubmitWithdraw = computed(() =>
+  withdrawPassword.value.trim().length > 0 && withdrawAgree.value
+)
+
+async function submitWithdraw() {
+  if (!canSubmitWithdraw.value || withdrawSubmitting.value) return
+  withdrawError.value = ''
+  withdrawSubmitting.value = true
+  const token = getToken()
+  if (!token) {
+    withdrawError.value = '로그인이 필요합니다.'
+    withdrawSubmitting.value = false
+    return
+  }
+  try {
+    const res = await fetch('/api/auth/withdraw', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': token
+      },
+      body: JSON.stringify({
+        password: withdrawPassword.value,
+        reasonCode: withdrawReasonCode.value || undefined
+      }),
+      cache: 'no-store'
+    })
+    const data = res.ok ? {} : await res.json().catch(() => ({}))
+    if (!res.ok) {
+      withdrawError.value = data.message || '탈퇴 처리에 실패했습니다. 비밀번호를 확인해주세요.'
+      withdrawSubmitting.value = false
+      return
+    }
+    clearAuth()
+    resetOnLogout()
+    withdrawPassword.value = ''
+    withdrawReasonCode.value = ''
+    withdrawAgree.value = false
+    router.replace('/')
+  } catch {
+    withdrawError.value = '네트워크 오류가 발생했습니다.'
+  } finally {
+    withdrawSubmitting.value = false
+  }
+}
+
 watch(
   () => route.fullPath,
   (fullPath) => {
@@ -1037,16 +1099,78 @@ const currentProfileIndex = computed(() => {
 
         <!-- 회원탈퇴 페이지 -->
         <template v-else-if="activeMySubSection === MY_SUB_SECTION.WITHDRAW">
-          <section class="section section--bottom-space" aria-labelledby="section-withdraw-title">
+          <section class="section section--bottom-space withdraw-section" aria-labelledby="section-withdraw-title">
             <h2 id="section-withdraw-title" class="section-title">회원 탈퇴</h2>
-            <div class="section-contents">
-              <p class="account-value">
-                회원 탈퇴 전, 계정 정보와 이용 내역이 삭제된 후에는 복구가 어려울 수 있어요.
+
+            <div class="withdraw-notice">
+              <p class="withdraw-notice-text">
+                탈퇴 시 계정 정보, 즐겨찾기, 투표·룰렛 기록 등 모든 데이터가 삭제되며 <strong>복구할 수 없습니다</strong>.
               </p>
-              <p class="account-value">
-                실제 탈퇴 처리 로직(비밀번호 재확인, 동의 체크 등)은 추후에 서버 API와 연동해서 구현하면 됩니다.
+              <p class="withdraw-notice-text">
+                탈퇴를 진행하려면 아래에서 비밀번호를 입력하고 안내에 동의해 주세요.
               </p>
-              <button type="button" class="btn-outlined" disabled>회원 탈퇴 진행 (준비 중)</button>
+            </div>
+
+            <div class="section-contents withdraw-form">
+              <div v-if="withdrawError" class="withdraw-alert" role="alert">
+                <span class="withdraw-alert-icon" aria-hidden="true">!</span>
+                <p class="withdraw-alert-message">{{ withdrawError }}</p>
+              </div>
+
+              <div class="account-row withdraw-row">
+                <label for="withdraw-password" class="account-label">비밀번호 확인</label>
+                <input
+                  id="withdraw-password"
+                  v-model="withdrawPassword"
+                  type="password"
+                  class="withdraw-input"
+                  placeholder="현재 비밀번호를 입력하세요"
+                  autocomplete="current-password"
+                  :disabled="withdrawSubmitting"
+                />
+              </div>
+
+              <div class="account-row withdraw-row">
+                <label for="withdraw-reason" class="account-label">탈퇴 사유</label>
+                <select
+                  id="withdraw-reason"
+                  v-model="withdrawReasonCode"
+                  class="withdraw-select"
+                  :disabled="withdrawSubmitting"
+                >
+                  <option
+                    v-for="opt in WITHDRAW_REASONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="withdraw-agree-row">
+                <input
+                  id="withdraw-agree"
+                  v-model="withdrawAgree"
+                  type="checkbox"
+                  class="withdraw-checkbox"
+                  :disabled="withdrawSubmitting"
+                />
+                <label for="withdraw-agree" class="withdraw-agree-label">
+                  탈퇴 시 위 내용을 확인했으며, 삭제·복구 불가에 동의합니다.
+                </label>
+              </div>
+
+              <div class="withdraw-actions">
+                <button
+                  type="button"
+                  class="btn-withdraw"
+                  :disabled="!canSubmitWithdraw || withdrawSubmitting"
+                  @click="submitWithdraw"
+                >
+                  {{ withdrawSubmitting ? '처리 중...' : '회원 탈퇴하기' }}
+                </button>
+              </div>
             </div>
           </section>
         </template>
@@ -1247,74 +1371,82 @@ const currentProfileIndex = computed(() => {
             </div>
           </div>
 
-          <div
-            v-if="filteredHistoryResults.length === 0"
-            class="section-contents section-contents--empty"
-          >
-            <p class="empty-text">진행한 결과가 없어요</p>
-          </div>
-          <div
-            v-else
-            class="section-contents section-contents--list"
-          >
-            <router-link
-              v-for="item in pagedHistoryResults"
-              :key="`${item.type}-${item.id}-${item.createdAt}`"
-              :to="
-                item.type === 'vote'
-                  ? `/vote/${item.id}`
-                  : { name: 'rouletteShare', query: { data: item.shareData, fromHistory: 'true' } }
-              "
-              class="vote-list-item"
-              :class="{ 'vote-list-item--roulette': item.type === 'roulette' }"
-            >
-              <div class="vote-list-main">
-                <span
-                  class="result-label"
-                  :class="item.type === 'vote' ? 'result-label--vote' : 'result-label--roulette'"
-                >
-                  {{ item.type === 'vote' ? '투표' : '룰렛' }}
-                </span>
-                <span class="vote-list-title">
-                  {{ item.type === 'vote' ? item.title : '오늘 점심은 여기로 결정!' }}
-                </span>
+          <div class="history-section-body">
+            <!-- 리스트 영역: 고정 높이 슬롯 → 카드 개수와 무관하게 섹션 크기 동일 -->
+            <div class="history-list-slot">
+              <div
+                v-if="filteredHistoryResults.length === 0"
+                class="section-contents section-contents--empty section-contents--history-empty"
+              >
+                <p class="empty-text">진행한 결과가 없어요</p>
               </div>
-              <span class="vote-list-date">{{ formatVoteDate(item.createdAt) }}</span>
-            </router-link>
-          </div>
+              <div
+                v-else
+                class="section-contents section-contents--list section-contents--history-list"
+              >
+                <router-link
+                  v-for="item in pagedHistoryResults"
+                  :key="`${item.type}-${item.id}-${item.createdAt}`"
+                  :to="
+                    item.type === 'vote'
+                      ? `/vote/${item.id}`
+                      : { name: 'rouletteShare', query: { data: item.shareData, fromHistory: 'true' } }
+                  "
+                  class="vote-list-item"
+                  :class="{ 'vote-list-item--roulette': item.type === 'roulette' }"
+                >
+                  <div class="vote-list-main">
+                    <span
+                      class="result-label"
+                      :class="item.type === 'vote' ? 'result-label--vote' : 'result-label--roulette'"
+                    >
+                      {{ item.type === 'vote' ? '투표' : '룰렛' }}
+                    </span>
+                    <span class="vote-list-title">
+                      {{ item.type === 'vote' ? item.title : '오늘 점심은 여기로 결정!' }}
+                    </span>
+                  </div>
+                  <span class="vote-list-date">{{ formatVoteDate(item.createdAt) }}</span>
+                </router-link>
+              </div>
+            </div>
 
-          <div
-            v-if="filteredHistoryResults.length > 0"
-            class="pagination"
-          >
-            <button
-              type="button"
-              class="pagination-arrow"
-              aria-label="이전"
-              :disabled="historyPage === 1"
-              @click="goPrevHistoryPage"
-            >
-              ‹
-            </button>
-            <button
-              v-for="page in totalHistoryPages"
-              :key="`history-page-${page}`"
-              type="button"
-              class="pagination-page"
-              :class="{ 'pagination-page--current': page === historyPage }"
-              @click="setHistoryPage(page)"
-            >
-              {{ page }}
-            </button>
-            <button
-              type="button"
-              class="pagination-arrow"
-              aria-label="다음"
-              :disabled="historyPage === totalHistoryPages"
-              @click="goNextHistoryPage"
-            >
-              ›
-            </button>
+            <!-- 페이지네이션 슬롯: 항상 같은 높이 예약 → 버튼 위치 완전 고정 -->
+            <div class="history-pagination-slot">
+              <div
+                v-if="filteredHistoryResults.length > 0"
+                class="pagination pagination--history"
+              >
+                <button
+                  type="button"
+                  class="pagination-arrow"
+                  aria-label="이전"
+                  :disabled="historyPage === 1"
+                  @click="goPrevHistoryPage"
+                >
+                  ‹
+                </button>
+                <button
+                  v-for="page in totalHistoryPages"
+                  :key="`history-page-${page}`"
+                  type="button"
+                  class="pagination-page"
+                  :class="{ 'pagination-page--current': page === historyPage }"
+                  @click="setHistoryPage(page)"
+                >
+                  {{ page }}
+                </button>
+                <button
+                  type="button"
+                  class="pagination-arrow"
+                  aria-label="다음"
+                  :disabled="historyPage === totalHistoryPages"
+                  @click="goNextHistoryPage"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
           </div>
         </section>
       </template>
@@ -1991,6 +2123,209 @@ const currentProfileIndex = computed(() => {
   outline-offset: 2px;
 }
 
+/* 회원 탈퇴 섹션 — 라벨·입력 한 축 정렬 */
+.withdraw-section {
+  max-width: 480px;
+}
+
+.withdraw-section .section-title {
+  margin-bottom: 24px;
+}
+
+.withdraw-notice {
+  margin-bottom: 32px;
+  padding: 20px 24px;
+  background-color: #fff9f8;
+  border: 1px solid #ffe0d8;
+  border-radius: 16px;
+}
+
+.withdraw-notice-text {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #3c4043;
+  margin: 0 0 8px;
+}
+
+.withdraw-notice-text:last-child {
+  margin-bottom: 0;
+}
+
+.withdraw-notice-text strong {
+  color: #d93025;
+  font-weight: 700;
+}
+
+/* 폼: 세로 간격 통일, 라벨 140px | 필드 240px 축 정렬 */
+.withdraw-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.withdraw-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+}
+
+.withdraw-alert-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #dc2626;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 50%;
+}
+
+.withdraw-alert-message {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #991b1b;
+  margin: 0;
+  flex: 1;
+}
+
+.withdraw-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.withdraw-row .account-label {
+  width: 140px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.withdraw-input,
+.withdraw-select {
+  width: 240px;
+  flex-shrink: 0;
+  height: 48px;
+  padding: 0 16px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #3c4043;
+  background-color: #ffffff;
+  border: 1px solid #dadce0;
+  border-radius: 12px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.withdraw-input::placeholder {
+  color: #9aa0a6;
+}
+
+.withdraw-input:hover,
+.withdraw-select:hover {
+  border-color: #bdc1c6;
+}
+
+.withdraw-input:focus,
+.withdraw-select:focus {
+  outline: none;
+  border-color: #ff5531;
+  box-shadow: 0 0 0 2px rgba(255, 85, 49, 0.2);
+}
+
+.withdraw-input:disabled,
+.withdraw-select:disabled {
+  background-color: #f1f3f4;
+  color: #80868b;
+  cursor: not-allowed;
+}
+
+.withdraw-select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235f6368' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 40px;
+}
+
+.withdraw-agree-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.withdraw-checkbox {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  accent-color: #ff5531;
+  cursor: pointer;
+}
+
+.withdraw-checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.withdraw-agree-label {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #3c4043;
+  cursor: pointer;
+  user-select: none;
+}
+
+.withdraw-actions {
+  margin-top: 0;
+}
+
+.btn-withdraw {
+  width: 240px;
+  height: 56px;
+  padding: 0 24px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1.35;
+  color: #ffffff;
+  background-color: #d93025;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-withdraw:hover:not(:disabled) {
+  background-color: #b71c1c;
+}
+
+.btn-withdraw:focus-visible {
+  outline: 2px solid #d93025;
+  outline-offset: 2px;
+}
+
+.btn-withdraw:disabled {
+  background-color: #dadce0;
+  color: #9aa0a6;
+  cursor: not-allowed;
+}
+
 .section-contents--empty {
   display: flex;
   align-items: center;
@@ -2002,6 +2337,50 @@ const currentProfileIndex = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* 지난 결과 내역: 고정 높이 슬롯으로 섹션·버튼 위치 흔들림 제거 */
+.history-section-body {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+/* 리스트 영역: 높이 고정(10개 카드 + gap 수용) → 페이지네이션 침범 방지 */
+.history-list-slot {
+  /* 10개 카드(약 52px/개) + 9개 gap(8px) = 572px, 여유 포함 620px */
+  height: 620px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.section-contents--history-list {
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.section-contents--history-empty {
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 페이지네이션 슬롯: 항상 같은 높이 예약 → 버튼 위치 완전 고정 */
+.history-pagination-slot {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.pagination--history {
+  flex-shrink: 0;
 }
 
 .history-filters {

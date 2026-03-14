@@ -6,8 +6,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import kr.io.diduga.lunch_recommendation.dto.MemberResponse;
 import kr.io.diduga.lunch_recommendation.dto.SignUpRequest;
+import kr.io.diduga.lunch_recommendation.dto.WithdrawRequest;
 import kr.io.diduga.lunch_recommendation.entity.MemberEntity;
+import kr.io.diduga.lunch_recommendation.entity.VoteEntity;
+import kr.io.diduga.lunch_recommendation.repository.FavoriteRestaurantRepository;
 import kr.io.diduga.lunch_recommendation.repository.MemberRepository;
+import kr.io.diduga.lunch_recommendation.repository.RouletteHistoryRepository;
+import kr.io.diduga.lunch_recommendation.repository.VoteNotificationReadRepository;
+import kr.io.diduga.lunch_recommendation.repository.VoteRecordRepository;
+import kr.io.diduga.lunch_recommendation.repository.VoteRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,12 +30,25 @@ public class MemberService {
 	private final MemberRepository memberRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final EntityManager entityManager;
+	private final VoteRepository voteRepository;
+	private final VoteRecordRepository voteRecordRepository;
+	private final VoteNotificationReadRepository voteNotificationReadRepository;
+	private final FavoriteRestaurantRepository favoriteRestaurantRepository;
+	private final RouletteHistoryRepository rouletteHistoryRepository;
 
 	public MemberService(MemberRepository memberRepository, PasswordEncoder passwordEncoder,
-			EntityManager entityManager) {
+			EntityManager entityManager, VoteRepository voteRepository,
+			VoteRecordRepository voteRecordRepository, VoteNotificationReadRepository voteNotificationReadRepository,
+			FavoriteRestaurantRepository favoriteRestaurantRepository,
+			RouletteHistoryRepository rouletteHistoryRepository) {
 		this.memberRepository = memberRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.entityManager = entityManager;
+		this.voteRepository = voteRepository;
+		this.voteRecordRepository = voteRecordRepository;
+		this.voteNotificationReadRepository = voteNotificationReadRepository;
+		this.favoriteRestaurantRepository = favoriteRestaurantRepository;
+		this.rouletteHistoryRepository = rouletteHistoryRepository;
 	}
 
 	private static final String SPECIAL_CHARS = "!@#$%^&*()_+-=[]{};':\"\\|,.<>/?";
@@ -111,6 +131,33 @@ public class MemberService {
 		int saved = reloaded.getProfileImageIndex();
 		log.debug("프로필 이미지 재조회 memberId={} profileImageIndex={}", id, saved);
 		return toResponse(reloaded);
+	}
+
+	/**
+	 * 회원 탈퇴. 비밀번호 재확인 후 연관 데이터 삭제 순서로 회원 삭제.
+	 *
+	 * @param token
+	 *            X-Auth-Token
+	 * @param request
+	 *            비밀번호 및 선택 사유
+	 */
+	@Transactional
+	public void withdraw(String token, WithdrawRequest request) {
+		MemberEntity entity = getEntityByToken(token);
+		if (!passwordEncoder.matches(request.getPassword(), entity.getPasswordHash())) {
+			throw new InvalidCredentialsException("비밀번호가 일치하지 않습니다.");
+		}
+		Long memberId = entity.getId();
+		// 투표별 참여 기록 삭제 후 투표 삭제
+		for (VoteEntity vote : voteRepository.findByMemberId(memberId)) {
+			voteRecordRepository.deleteByVoteId(vote.getId());
+		}
+		voteNotificationReadRepository.deleteByMemberId(memberId);
+		voteRepository.deleteByMemberId(memberId);
+		favoriteRestaurantRepository.deleteByMemberId(memberId);
+		rouletteHistoryRepository.deleteByMemberId(memberId);
+		memberRepository.delete(entity);
+		log.info("회원 탈퇴 완료 memberId={} reasonCode={}", memberId, request.getReasonCode());
 	}
 
 	private MemberEntity getEntityByToken(String token) {

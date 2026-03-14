@@ -5,6 +5,7 @@ import kr.io.diduga.lunch_recommendation.dto.LoginRequest;
 import kr.io.diduga.lunch_recommendation.dto.MemberResponse;
 import kr.io.diduga.lunch_recommendation.dto.ProfileImageUpdateRequest;
 import kr.io.diduga.lunch_recommendation.dto.SignUpRequest;
+import kr.io.diduga.lunch_recommendation.dto.WithdrawRequest;
 import kr.io.diduga.lunch_recommendation.service.MemberService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -66,6 +67,17 @@ public class AuthController {
 			@Valid @RequestBody ProfileImageUpdateRequest request) {
 		MemberResponse member = memberService.updateProfileImage(token, request.getProfileImageIndex());
 		return ResponseEntity.ok(member);
+	}
+
+	/**
+	 * 회원 탈퇴. 비밀번호 재확인 필수. 성공 시 204 No Content.
+	 */
+	@PostMapping("/withdraw")
+	public ResponseEntity<Void> withdraw(
+			@RequestHeader(value = "X-Auth-Token", required = false) String token,
+			@Valid @RequestBody WithdrawRequest request) {
+		memberService.withdraw(token, request);
+		return ResponseEntity.noContent().build();
 	}
 
 	@ExceptionHandler(MemberService.InvalidCredentialsException.class)

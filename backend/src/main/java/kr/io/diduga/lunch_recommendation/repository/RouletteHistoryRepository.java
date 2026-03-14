@@ -12,4 +12,6 @@ import kr.io.diduga.lunch_recommendation.entity.RouletteHistoryEntity;
 public interface RouletteHistoryRepository extends JpaRepository<RouletteHistoryEntity, Long> {
 
 	List<RouletteHistoryEntity> findByMemberIdOrderByCreatedAtDesc(Long memberId);
+
+	void deleteByMemberId(Long memberId);
 }

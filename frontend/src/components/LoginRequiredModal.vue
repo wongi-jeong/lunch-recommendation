@@ -25,40 +25,20 @@ const handleConfirm = () => {
   <Transition name="popup-fade">
     <div v-if="visible" class="popup-overlay" @click.self="handleOverlayClick">
       <div class="popup-card">
-        <div class="popup-close-row">
-          <button class="popup-close-btn" type="button" @click="handleCloseClick" aria-label="닫기">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M15 5L5 15M5 5l10 10"
-                stroke="#5F6368"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </button>
-        </div>
-        <div class="popup-content">
-          <div class="popup-icon">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="16" cy="16" r="16" fill="#FF5531" />
-              <path
-                d="M16 10v6M16 20v1"
-                stroke="white"
-                stroke-width="2"
-                stroke-linecap="round"
-              />
-            </svg>
-          </div>
-          <p class="popup-title">로그인이 필요합니다</p>
-          <p class="popup-description">
-            이 기능을 사용하려면 로그인해 주세요.
+        <div class="popup-contents">
+          <p class="popup-title">
+            로그인하셔야
+            <br />
+            이용할 수 있는 서비스입니다
           </p>
-        </div>
-        <div class="popup-action">
-          <button class="popup-primary-btn" type="button" @click="handleConfirm">
-            로그인하러가기
-          </button>
+          <div class="popup-buttons">
+            <button class="popup-btn popup-btn--primary" type="button" @click="handleConfirm">
+              로그인하기
+            </button>
+            <button class="popup-btn popup-btn--secondary" type="button" @click="handleCloseClick">
+              닫기
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -81,102 +61,89 @@ const handleConfirm = () => {
 }
 
 .popup-card {
-  background-color: #fff;
-  border-radius: 48px;
-  padding: 24px 32px 56px;
-  width: 480px;
-  max-width: 90vw;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 32px;
+  background-color: #ffffff;
+  border-radius: 32px;
+  padding: 40px;
+  width: 100%;
+  max-width: min(360px, 90vw);
+  box-sizing: border-box;
   box-shadow: 0 0 48px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-}
-
-.popup-close-row {
-  width: 100%;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.popup-close-btn {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.popup-close-btn:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.popup-content {
-  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
 }
 
-.popup-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 28px;
-  background-color: #fff5f3;
+.popup-contents {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 24px;
+  width: 100%;
 }
 
 .popup-title {
   font-family: 'Pretendard', sans-serif;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 22px;
   line-height: 1.35;
-  color: #000;
+  color: #31373c;
   text-align: center;
   margin: 0;
 }
 
-.popup-description {
-  font-family: 'Pretendard', sans-serif;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #5f6368;
-  margin: 0;
-  text-align: center;
+.popup-buttons {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  align-items: stretch;
 }
 
-.popup-action {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.popup-primary-btn {
-  width: 100%;
-  height: 64px;
-  border: none;
-  border-radius: 20px;
-  background-color: #ff5531;
+.popup-btn {
+  height: 56px;
+  border-radius: 16px;
+  padding: 0 20px;
   font-family: 'Pretendard', sans-serif;
   font-weight: 700;
   font-size: 20px;
   line-height: 1.35;
-  color: #fff;
+  text-align: center;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+  border: none;
+  box-sizing: border-box;
 }
 
-.popup-primary-btn:hover {
-  background-color: #e6442a;
+.popup-btn--primary {
+  flex: 1;
+  min-width: 0;
+  background-color: #fff0ea;
+  color: #ff5531;
+}
+
+.popup-btn--primary:hover {
+  background-color: #ffe0d6;
+}
+
+.popup-btn--primary:focus-visible {
+  outline: 2px solid #ff5531;
+  outline-offset: 2px;
+}
+
+.popup-btn--secondary {
+  flex-shrink: 0;
+  background-color: #ffffff;
+  border: 1px solid #dadce0;
+  color: #3c4043;
+}
+
+.popup-btn--secondary:hover {
+  border-color: #bdc1c6;
+  background-color: #f8f9fa;
+}
+
+.popup-btn--secondary:focus-visible {
+  outline: 2px solid #ff5531;
+  outline-offset: 2px;
 }
 
 .popup-fade-enter-active,

@@ -24,5 +24,7 @@ public interface VoteRecordRepository extends JpaRepository<VoteRecordEntity, Lo
 	Optional<VoteRecordEntity> findFirstByVoteIdAndAnonymousId(String voteId, String anonymousId);
 
 	Optional<VoteRecordEntity> findFirstByVoteIdAndFingerprint(String voteId, String fingerprint);
+
+	void deleteByVoteId(String voteId);
 }
 

@@ -14,4 +14,6 @@ public interface VoteNotificationReadRepository extends JpaRepository<VoteNotifi
 	List<VoteNotificationReadEntity> findByMemberId(Long memberId);
 
 	boolean existsByMemberIdAndVoteId(Long memberId, String voteId);
+
+	void deleteByMemberId(Long memberId);
 }
