@@ -83,7 +83,7 @@ const handleSelect = (index) => {
             @click.stop="openExternalLink(option)"
             aria-label="Google 지도에서 보기"
           >
-            <img src="@/assets/external-link-icon.svg" alt="외부 링크" class="vote-item-external-icon" />
+            <img src="@/assets/icon-external-link.svg" alt="외부 링크" class="vote-item-external-icon" />
           </button>
         </div>
         <div class="vote-item-body">
@@ -96,7 +96,7 @@ const handleSelect = (index) => {
               </span>
               <span class="vote-item-dot">·</span>
               <span class="vote-item-rating">
-                <img src="@/assets/star-icon.svg" alt="별점" class="vote-item-star-icon" />
+                <img src="@/assets/icon-star.svg" alt="별점" class="vote-item-star-icon" />
                 {{ option.rating != null ? option.rating.toFixed(1) : '0.0' }}
               </span>
               <span class="vote-item-dot">·</span>

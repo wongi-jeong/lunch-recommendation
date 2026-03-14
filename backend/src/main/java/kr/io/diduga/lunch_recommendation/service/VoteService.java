@@ -6,7 +6,9 @@ import kr.io.diduga.lunch_recommendation.dto.VoteResponse;
 import kr.io.diduga.lunch_recommendation.dto.VoteStatsResponse;
 import kr.io.diduga.lunch_recommendation.dto.VoteSubmitRequest;
 import kr.io.diduga.lunch_recommendation.entity.VoteEntity;
+import kr.io.diduga.lunch_recommendation.entity.VoteNotificationReadEntity;
 import kr.io.diduga.lunch_recommendation.entity.VoteRecordEntity;
+import kr.io.diduga.lunch_recommendation.repository.VoteNotificationReadRepository;
 import kr.io.diduga.lunch_recommendation.repository.VoteRecordRepository;
 import kr.io.diduga.lunch_recommendation.repository.VoteRepository;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -29,13 +32,16 @@ public class VoteService {
 	private final VoteRepository voteRepository;
 	private final MemberService memberService;
 	private final VoteRecordRepository voteRecordRepository;
+	private final VoteNotificationReadRepository voteNotificationReadRepository;
 	private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
 	public VoteService(VoteRepository voteRepository, MemberService memberService,
-			VoteRecordRepository voteRecordRepository) {
+			VoteRecordRepository voteRecordRepository,
+			VoteNotificationReadRepository voteNotificationReadRepository) {
 		this.voteRepository = voteRepository;
 		this.memberService = memberService;
 		this.voteRecordRepository = voteRecordRepository;
+		this.voteNotificationReadRepository = voteNotificationReadRepository;
 	}
 
 	/**
@@ -201,13 +207,38 @@ public class VoteService {
 	}
 
 	/**
-	 * 로그인한 회원의 종료된 투표 목록.
+	 * 로그인한 회원의 종료된 투표 목록. 알림 읽음 여부(read) 포함.
 	 */
 	public List<VoteResponse> getEnded(String token) {
 		MemberResponse me = memberService.getMe(token);
-		List<VoteEntity> list = voteRepository.findByMemberIdAndStatusOrderByCreatedAtDesc(me.getId(),
+		Long memberId = me.getId();
+		List<VoteEntity> list = voteRepository.findByMemberIdAndStatusOrderByCreatedAtDesc(memberId,
 				VoteEntity.Status.ENDED);
-		return list.stream().map(VoteResponse::fromEntity).collect(Collectors.toList());
+		Set<String> readVoteIds = voteNotificationReadRepository.findByMemberId(memberId).stream()
+				.map(VoteNotificationReadEntity::getVoteId)
+				.collect(Collectors.toSet());
+		return list.stream().map(entity -> {
+			VoteResponse dto = VoteResponse.fromEntity(entity);
+			dto.setRead(readVoteIds.contains(entity.getId()));
+			return dto;
+		}).collect(Collectors.toList());
+	}
+
+	/**
+	 * 종료된 투표 알림을 읽음 처리. 본인이 생성한 투표만 가능.
+	 */
+	@Transactional
+	public void markNotificationRead(String token, String voteId) {
+		MemberResponse me = memberService.getMe(token);
+		VoteEntity entity = voteRepository.findById(voteId)
+				.orElseThrow(() -> new IllegalArgumentException("투표를 찾을 수 없습니다."));
+		if (!entity.getMemberId().equals(me.getId())) {
+			throw new IllegalArgumentException("본인의 투표 알림만 읽음 처리할 수 있습니다.");
+		}
+		if (voteNotificationReadRepository.existsByMemberIdAndVoteId(me.getId(), voteId)) {
+			return;
+		}
+		voteNotificationReadRepository.save(new VoteNotificationReadEntity(me.getId(), voteId));
 	}
 
 	/**

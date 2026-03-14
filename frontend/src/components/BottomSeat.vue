@@ -17,17 +17,23 @@
       </div>
 
       <!-- 추천 카드 목록 (Figma recommendationCards 레이아웃) -->
-      <div v-else class="bottom-seat-content recommendation-cards">
+      <div
+        v-else
+        ref="cardsScrollRef"
+        class="bottom-seat-content recommendation-cards"
+        :class="{ 'is-dragging': isDragging }"
+        @mousedown="onCardsMouseDown"
+      >
         <div class="recommendation-cards-inner">
           <article
             v-for="(restaurant, index) in restaurants"
-            :key="restaurant.id ?? index"
+            :key="(restaurant.googlePlaceId || restaurant.placeId || restaurant.id) || `restaurant-${index}`"
             class="recommendation-card"
             :class="{
               'is-refreshing': refreshingIndex === index,
               'is-swapped': swappedIndex === index
             }"
-            @click="$emit('select', restaurant)"
+            @click="handleCardClick(restaurant)"
           >
             <!-- shimmer 오버레이 (로딩 중) -->
             <div v-if="refreshingIndex === index" class="card-shimmer-overlay" />
@@ -82,7 +88,7 @@
                 {{ getBusinessStatus(restaurant) }}
               </div>
               <div class="card-rating">
-                <img src="@/assets/star-icon.svg" alt="별점" class="card-star-icon" />
+                <img src="@/assets/icon-star.svg" alt="별점" class="card-star-icon" />
                 <span class="card-rating-value">{{ restaurant.rating ? restaurant.rating.toFixed(1) : '0.0' }}</span>
               </div>
               <div v-if="restaurant.distanceMeters" class="card-distance">
@@ -98,10 +104,10 @@
                 :class="{ 'is-spinning': refreshingIndex === index }"
                 @click.stop="refreshRestaurant(restaurant, index)"
               >
-                <img src="@/assets/refresh-icon.svg" alt="새로고침" class="refresh-icon" />
+                <img src="@/assets/icon-refresh.svg" alt="새로고침" class="refresh-icon" />
               </button>
               <button type="button" class="card-action-btn" @click.stop="openExternalLink(restaurant)">
-                <img src="@/assets/external-link-icon.svg" alt="외부 링크" />
+                <img src="@/assets/icon-external-link.svg" alt="외부 링크" />
               </button>
             </div>
           </article>
@@ -113,7 +119,7 @@
 
 <script setup>
 import { ref, watch, nextTick, computed } from 'vue'
-import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
+import defaultThumbnail from '@/assets/img-placeholder-restaurant.png'
 
 const props = defineProps({
   hasResults: {
@@ -152,6 +158,50 @@ const refreshingIndex = ref(-1)
 const swappedIndex = ref(-1)
 // deep watch에서는 newVal/oldVal이 동일 참조이므로, 새로고침 시작 시점의 식별자를 저장해 비교
 const refreshingOldId = ref(null)
+
+// 가로 스크롤 드래그 (마우스 클릭 후 드래그)
+const cardsScrollRef = ref(null)
+const isDragging = ref(false)
+const dragStartX = ref(0)
+const scrollStartLeft = ref(0)
+const hasDragged = ref(false)
+const DRAG_THRESHOLD = 5
+
+function onCardsMouseDown(e) {
+  if (e.button !== 0) return
+  const el = cardsScrollRef.value
+  if (!el) return
+  dragStartX.value = e.clientX
+  scrollStartLeft.value = el.scrollLeft
+  hasDragged.value = false
+  document.addEventListener('mousemove', onCardsMouseMove)
+  document.addEventListener('mouseup', onCardsMouseUp)
+}
+
+function onCardsMouseMove(e) {
+  const el = cardsScrollRef.value
+  if (!el) return
+  const dx = e.clientX - dragStartX.value
+  if (!isDragging.value && Math.abs(dx) > DRAG_THRESHOLD) {
+    isDragging.value = true
+    hasDragged.value = true
+  }
+  if (isDragging.value) {
+    el.scrollLeft = scrollStartLeft.value + (dragStartX.value - e.clientX)
+    e.preventDefault()
+  }
+}
+
+function onCardsMouseUp() {
+  document.removeEventListener('mousemove', onCardsMouseMove)
+  document.removeEventListener('mouseup', onCardsMouseUp)
+  isDragging.value = false
+}
+
+function handleCardClick(restaurant) {
+  if (hasDragged.value) return
+  emit('select', restaurant)
+}
 
 watch(() => props.restaurants, (restaurants) => {
   if (refreshingIndex.value < 0 || refreshingOldId.value == null) return
@@ -454,6 +504,18 @@ const formatDistance = (meters) => {
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.06);
+  cursor: grab;
+  user-select: none;
+}
+
+.recommendation-cards:active {
+  cursor: grabbing;
+}
+
+.recommendation-cards.is-dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+  user-select: none;
 }
 
 .recommendation-cards::-webkit-scrollbar {

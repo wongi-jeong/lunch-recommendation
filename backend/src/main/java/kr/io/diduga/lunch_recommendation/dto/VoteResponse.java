@@ -5,6 +5,7 @@ import kr.io.diduga.lunch_recommendation.entity.VoteEntity;
 import java.time.Instant;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -23,6 +24,8 @@ public class VoteResponse {
 	private String timer;
 	private Instant createdAt;
 	private Instant endedAt;
+	/** 종료된 투표 알림 읽음 여부. GET /api/votes/me/ended 응답에서만 사용. */
+	private Boolean read;
 
 	public String getId() {
 		return id;
@@ -86,6 +89,15 @@ public class VoteResponse {
 
 	public void setEndedAt(Instant endedAt) {
 		this.endedAt = endedAt;
+	}
+
+	@JsonProperty("isRead")
+	public Boolean getRead() {
+		return read;
+	}
+
+	public void setRead(Boolean read) {
+		this.read = read;
 	}
 
 	public static VoteResponse fromEntity(VoteEntity entity) {

@@ -8,6 +8,7 @@ import kr.io.diduga.lunch_recommendation.service.MemberService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 즐겨찾기 식당 API 컨트롤러.
@@ -66,6 +68,16 @@ public class FavoriteRestaurantController {
 		MemberService.InvalidCredentialsException.requireToken(token);
 		List<FavoriteRestaurantResponse> list = favoriteRestaurantService.listMyFavorites(token, limit);
 		return ResponseEntity.ok(list);
+	}
+
+	@ExceptionHandler(MemberService.InvalidCredentialsException.class)
+	public ResponseEntity<Map<String, String>> handleInvalidCredentials(MemberService.InvalidCredentialsException e) {
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
+	}
+
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException e) {
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
 	}
 }
 

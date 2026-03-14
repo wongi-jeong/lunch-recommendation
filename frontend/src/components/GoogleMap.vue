@@ -1,11 +1,11 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import currentLocationIcon from '@/assets/current-location-icon.svg'
-import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
-import markerPinletIcon from '@/assets/marker-pin-icon.svg'
-import favoriteHeartIcon from '@/assets/favorite-heart-icon.svg'
-import refreshIcon from '@/assets/refresh-icon.svg'
-import externalLinkIcon from '@/assets/external-link-icon.svg'
+import currentLocationIcon from '@/assets/icon-current-location.svg'
+import defaultThumbnail from '@/assets/img-placeholder-restaurant.png'
+import markerPinletIcon from '@/assets/icon-map-marker.svg'
+import favoriteHeartIcon from '@/assets/icon-favorite-heart.svg'
+import refreshIcon from '@/assets/icon-refresh.svg'
+import externalLinkIcon from '@/assets/icon-external-link.svg'
 
 const props = defineProps({
   apiKey: {

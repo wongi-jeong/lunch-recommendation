@@ -52,7 +52,8 @@ public class FavoriteRestaurantEntity {
 	@Column(name = "distance_meters")
 	private Integer distanceMeters;
 
-	@Column(name = "photo_name", length = 255)
+	/** Google Places 사진 name (길게 허용) */
+	@Column(name = "photo_name", length = 1024)
 	private String photoName;
 
 	/** 카테고리 문자열 배열(JSON) */

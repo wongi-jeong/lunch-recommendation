@@ -5,7 +5,7 @@ import { useAuth } from '@/composables/useAuth'
 import VoteResultCard from './VoteResultCard.vue'
 import VoteOptionsList from './VoteOptionsList.vue'
 import VoteShareModal from './VoteShareModal.vue'
-import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
+import defaultThumbnail from '@/assets/img-placeholder-restaurant.png'
 import { getVoterIdentity, findExistingVote } from '@/utils/voterIdentity'
 
 const VOTE_TTL_MS = 7 * 24 * 60 * 60 * 1000

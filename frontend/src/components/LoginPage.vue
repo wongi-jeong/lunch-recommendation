@@ -3,8 +3,8 @@ import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useCapsLock } from '@/composables/useCapsLock'
 import { useAuth } from '@/composables/useAuth'
-import visibilityIcon from '@/assets/visibility-icon.svg'
-import visibilityOffIcon from '@/assets/visibility-off-icon.svg'
+import visibilityIcon from '@/assets/icon-password-visible.svg'
+import visibilityOffIcon from '@/assets/icon-password-hidden.svg'
 import logoImage from '@/assets/logo-mechu.svg'
 
 const router = useRouter()

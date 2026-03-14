@@ -2,11 +2,11 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
-import wheelAccessory from '@/assets/roulette-wheel-frame.svg'
-import roulettePointer from '@/assets/roulette-pointer.svg'
-import externalLinkIcon from '@/assets/external-link-icon.svg'
-import starIcon from '@/assets/star-icon.svg'
-import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
+import wheelAccessory from '@/assets/icon-roulette-wheel.svg'
+import roulettePointer from '@/assets/icon-roulette-pointer.svg'
+import externalLinkIcon from '@/assets/icon-external-link.svg'
+import starIcon from '@/assets/icon-star.svg'
+import defaultThumbnail from '@/assets/img-placeholder-restaurant.png'
 
 const SEGMENT_COLORS_2 = ['#D9F0E0', '#5FCB7F']
 const SEGMENT_COLORS_3 = ['#5BC086', '#A1D9B7', '#E7F6ED']

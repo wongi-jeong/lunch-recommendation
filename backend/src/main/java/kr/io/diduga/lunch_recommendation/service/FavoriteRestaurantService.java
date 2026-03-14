@@ -56,26 +56,35 @@ public class FavoriteRestaurantService {
 				? Instant.ofEpochMilli(request.getFavoritedAt())
 				: Instant.now();
 
+		// DB 제약(nullable, length) 방지를 위한 null/길이 정규화
+		String name = request.getName() != null ? request.getName().trim() : "";
+		String address = request.getAddress() != null ? request.getAddress() : null;
+		String googleMapsUri = request.getGoogleMapsUri() != null ? request.getGoogleMapsUri() : null;
+		String photoName = request.getPhotoName();
+		if (photoName != null && photoName.length() > 1024) {
+			photoName = photoName.substring(0, 1024);
+		}
+
 		Optional<FavoriteRestaurantEntity> existingOpt = favoriteRestaurantRepository
 				.findByMemberIdAndRestaurantId(memberId, restaurantId);
 
 		FavoriteRestaurantEntity entity;
 		if (existingOpt.isPresent()) {
 			entity = existingOpt.get();
-			entity.setName(request.getName());
-			entity.setAddress(request.getAddress());
-			entity.setGoogleMapsUri(request.getGoogleMapsUri());
+			entity.setName(name);
+			entity.setAddress(address);
+			entity.setGoogleMapsUri(googleMapsUri);
 			entity.setLatitude(request.getLatitude());
 			entity.setLongitude(request.getLongitude());
 			entity.setRating(request.getRating());
 			entity.setDistanceMeters(request.getDistanceMeters());
-			entity.setPhotoName(request.getPhotoName());
+			entity.setPhotoName(photoName);
 			entity.setCategoriesJson(categoriesJson);
 			entity.setFavoritedAt(favoritedAt);
 		} else {
-			entity = new FavoriteRestaurantEntity(memberId, restaurantId, request.getName(), request.getAddress(),
-					request.getGoogleMapsUri(), request.getLatitude(), request.getLongitude(), request.getRating(),
-					request.getDistanceMeters(), request.getPhotoName(), categoriesJson, favoritedAt);
+			entity = new FavoriteRestaurantEntity(memberId, restaurantId, name, address,
+					googleMapsUri, request.getLatitude(), request.getLongitude(), request.getRating(),
+					request.getDistanceMeters(), photoName, categoriesJson, favoritedAt);
 		}
 
 		FavoriteRestaurantEntity saved = favoriteRestaurantRepository.save(entity);

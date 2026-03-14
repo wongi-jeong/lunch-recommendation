@@ -3,18 +3,18 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useFavorites } from '@/composables/useFavorites'
-import profileIcon from '@/assets/profile-icon.svg'
-import profileEditIcon from '@/assets/profile-edit-icon.svg'
-import profileAvatar1 from '@/assets/profile-avatar-1.png'
-import profileAvatar2 from '@/assets/profile-avatar-2.png'
-import profileAvatar3 from '@/assets/profile-avatar-3.png'
-import profileAvatar4 from '@/assets/profile-avatar-4.png'
-import profileAvatar5 from '@/assets/profile-avatar-5.png'
-import profileAvatar6 from '@/assets/profile-avatar-6.png'
-import profileAvatar7 from '@/assets/profile-avatar-7.png'
-import profileAvatar8 from '@/assets/profile-avatar-8.png'
-import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
-import externalLinkIcon from '@/assets/external-link-icon.svg'
+import profileIcon from '@/assets/icon-profile-default.svg'
+import profileEditIcon from '@/assets/icon-profile-edit.svg'
+import profileAvatar1 from '@/assets/avatar-1.png'
+import profileAvatar2 from '@/assets/avatar-2.png'
+import profileAvatar3 from '@/assets/avatar-3.png'
+import profileAvatar4 from '@/assets/avatar-4.png'
+import profileAvatar5 from '@/assets/avatar-5.png'
+import profileAvatar6 from '@/assets/avatar-6.png'
+import profileAvatar7 from '@/assets/avatar-7.png'
+import profileAvatar8 from '@/assets/avatar-8.png'
+import defaultThumbnail from '@/assets/img-placeholder-restaurant.png'
+import externalLinkIcon from '@/assets/icon-external-link.svg'
 import ProfileChangeModal from '@/components/ProfileChangeModal.vue'
 
 const route = useRoute()
@@ -97,8 +97,11 @@ const latestFavorites = computed(() => {
 })
 
 const getFavoriteImage = (item) => {
-  if (item?.photoName) {
-    return `/api/restaurants/photo?name=${encodeURIComponent(item.photoName)}`
+  const name = item?.photoName != null
+    ? (Array.isArray(item.photoName) ? item.photoName[0] : item.photoName)
+    : null
+  if (name) {
+    return `/api/restaurants/photo?name=${encodeURIComponent(name)}`
   }
   return defaultThumbnail
 }
@@ -156,9 +159,10 @@ const totalEndedPages = computed(() => {
   return Math.max(1, Math.ceil(endedVotes.value.length / PAGE_SIZE))
 })
 
-// 마이페이지 메인 섹션 (내 정보 / 지난 결과 내역)
+// 마이페이지 메인 섹션 (내 정보 / 내 저장 / 지난 결과 내역)
 const MAIN_SECTION = {
   INFO: 'info',
+  SAVED: 'saved',
   HISTORY: 'history'
 }
 
@@ -176,14 +180,48 @@ const activeMySubSection = ref(MY_SUB_SECTION.INFO)
 // 마이페이지 사이드 메뉴 토글 (펼치기/접기)
 const isMyMenuOpen = ref(true)
 
+// 내 저장 섹션: 정렬·페이지네이션
+const placeSortOrder = ref('desc')
+const placePage = ref(1)
+const PLACE_PAGE_SIZE = 12
+
+const sortedSavedPlaces = computed(() => {
+  const list = [...(memberFavorites.value || [])]
+  const order = placeSortOrder.value === 'asc' ? 1 : -1
+  list.sort((a, b) => {
+    const at = (a.favoritedAt && new Date(a.favoritedAt).getTime()) || 0
+    const bt = (b.favoritedAt && new Date(b.favoritedAt).getTime()) || 0
+    return order * (at - bt)
+  })
+  return list
+})
+
+const totalSavedPlacePages = computed(() =>
+  Math.max(1, Math.ceil(sortedSavedPlaces.value.length / PLACE_PAGE_SIZE))
+)
+
+const pagedSavedPlaces = computed(() => {
+  const start = (placePage.value - 1) * PLACE_PAGE_SIZE
+  return sortedSavedPlaces.value.slice(start, start + PLACE_PAGE_SIZE)
+})
+
+function setSavedPlacePage(p) {
+  const n = Number(p)
+  if (Number.isNaN(n) || n < 1 || n > totalSavedPlacePages.value) return
+  placePage.value = n
+}
+
+function getSavedFavoriteImage(item) {
+  if (item?.photoName) {
+    const name = Array.isArray(item.photoName) ? item.photoName[0] : item.photoName
+    if (name) return `/api/restaurants/photo?name=${encodeURIComponent(name)}`
+  }
+  return defaultThumbnail
+}
+
 const pagedOngoingVotes = computed(() => {
   const start = (ongoingPage.value - 1) * PAGE_SIZE
   return ongoingVotes.value.slice(start, start + PAGE_SIZE)
-})
-
-const ongoingPlaceholderCount = computed(() => {
-  const count = PAGE_SIZE - pagedOngoingVotes.value.length
-  return count > 0 ? count : 0
 })
 
 const sortedEndedVotes = computed(() => {
@@ -378,7 +416,7 @@ async function fetchMemberFavorites() {
     return
   }
   try {
-    const res = await fetch('/api/favorites/me?limit=3', {
+    const res = await fetch('/api/favorites/me', {
       headers: {
         'X-Auth-Token': token
       },
@@ -506,7 +544,9 @@ function syncSectionFromRoute() {
   if (route.path !== '/my') return
   const { section, filter } = route.query
 
-  if (section === 'history') {
+  if (section === 'saved') {
+    activeMainSection.value = MAIN_SECTION.SAVED
+  } else if (section === 'history') {
     activeMainSection.value = MAIN_SECTION.HISTORY
   } else {
     activeMainSection.value = MAIN_SECTION.INFO
@@ -651,7 +691,7 @@ const currentProfileIndex = computed(() => {
           class="menu-1depth menu-1depth--with-arrow menu-1depth--clickable"
           role="button"
           tabindex="0"
-          @click="isMyMenuOpen = !isMyMenuOpen"
+          @click.stop="isMyMenuOpen = !isMyMenuOpen"
         >
           <p class="menu-1depth-title">마이페이지</p>
           <span
@@ -675,7 +715,7 @@ const currentProfileIndex = computed(() => {
             }"
             role="button"
             tabindex="0"
-            @click="
+            @click.stop="
               activeMySubSection = MY_SUB_SECTION.INFO;
               activeMainSection = MAIN_SECTION.INFO
             "
@@ -690,7 +730,7 @@ const currentProfileIndex = computed(() => {
             }"
             role="button"
             tabindex="0"
-            @click="
+            @click.stop="
               activeMySubSection = MY_SUB_SECTION.PRIVACY;
               activeMainSection = MAIN_SECTION.INFO
             "
@@ -705,7 +745,7 @@ const currentProfileIndex = computed(() => {
             }"
             role="button"
             tabindex="0"
-            @click="
+            @click.stop="
               activeMySubSection = MY_SUB_SECTION.WITHDRAW;
               activeMainSection = MAIN_SECTION.INFO
             "
@@ -713,14 +753,22 @@ const currentProfileIndex = computed(() => {
             회원탈퇴
           </div>
         </nav>
-        <div class="menu-1depth">
+        <button
+          type="button"
+          class="menu-1depth menu-1depth--history"
+          :class="{ 'menu-1depth--selected': activeMainSection === MAIN_SECTION.SAVED }"
+          @click.stop="
+            activeMainSection = MAIN_SECTION.SAVED;
+            router.replace({ path: '/my', query: { section: 'saved' } })
+          "
+        >
           <p class="menu-1depth-title">내 저장</p>
-        </div>
+        </button>
         <button
           type="button"
           class="menu-1depth menu-1depth--history"
           :class="{ 'menu-1depth--selected': activeMainSection === MAIN_SECTION.HISTORY }"
-          @click="
+          @click.stop="
             activeMainSection = MAIN_SECTION.HISTORY;
             router.replace({
               path: '/my',
@@ -802,14 +850,6 @@ const currentProfileIndex = computed(() => {
                   <span class="vote-list-date">{{ formatVoteDate(v.createdAt) }}</span>
                 </div>
               </router-link>
-              <div
-                v-for="n in ongoingPlaceholderCount"
-                :key="`ongoing-placeholder-${n}`"
-                class="vote-list-item vote-list-item--placeholder"
-              >
-                <span class="vote-list-title">새로운 투표를 만들어보세요</span>
-                <span class="vote-list-date"> </span>
-              </div>
             </div>
             <div v-if="ongoingVotes.length > PAGE_SIZE" class="pagination">
               <button
@@ -850,7 +890,16 @@ const currentProfileIndex = computed(() => {
           <section class="section" aria-labelledby="section-fav-title">
             <div class="section-head">
               <h2 id="section-fav-title" class="section-title">최근 즐겨찾기 한 장소</h2>
-              <button type="button" class="btn-ghost">전체보기</button>
+              <button
+                type="button"
+                class="btn-ghost"
+                @click="
+                  activeMainSection = MAIN_SECTION.SAVED;
+                  router.replace({ path: '/my', query: { section: 'saved' } })
+                "
+              >
+                전체보기
+              </button>
             </div>
             <div v-if="latestFavorites.length === 0" class="section-contents section-contents--empty">
               <p class="empty-text">즐겨찾기한 장소가 없어요</p>
@@ -1003,8 +1052,137 @@ const currentProfileIndex = computed(() => {
         </template>
       </template>
 
+      <!-- 내 저장 섹션 (저장한 필터 + 저장한 장소) -->
+      <template v-else-if="activeMainSection === MAIN_SECTION.SAVED">
+        <section class="saved-section" aria-labelledby="section-filter-title">
+          <div class="saved-section-head">
+            <h2 id="section-filter-title" class="saved-section-title">저장한 필터</h2>
+            <button type="button" class="saved-section-btn">추가하기</button>
+          </div>
+          <div class="saved-section-contents saved-section-contents--empty">
+            <p class="saved-section-empty-text">저장한 필터가 없어요</p>
+          </div>
+        </section>
+        <section class="saved-section" aria-labelledby="section-places-title">
+          <div class="saved-section-head">
+            <h2 id="section-places-title" class="saved-section-title">저장한 장소</h2>
+            <div class="saved-section-buttons">
+              <button
+                type="button"
+                class="saved-section-btn"
+                :class="{ 'saved-section-btn--active': placeSortOrder === 'desc' }"
+                @click="placeSortOrder = 'desc'"
+              >
+                최신순
+              </button>
+              <button
+                type="button"
+                class="saved-section-btn"
+                :class="{ 'saved-section-btn--active': placeSortOrder === 'asc' }"
+                @click="placeSortOrder = 'asc'"
+              >
+                오래된순
+              </button>
+            </div>
+          </div>
+          <div
+            v-if="pagedSavedPlaces.length === 0"
+            class="saved-section-contents saved-section-contents--empty"
+          >
+            <p class="saved-section-empty-text">저장한 장소가 없어요</p>
+          </div>
+          <div v-else class="saved-section-contents saved-section-contents--cards">
+            <ul class="saved-places-list">
+              <li
+                v-for="item in pagedSavedPlaces"
+                :key="item.id"
+                class="saved-place-item"
+              >
+                <div class="saved-place-card">
+                  <div class="saved-place-thumb-wrap">
+                    <img
+                      :src="getSavedFavoriteImage(item)"
+                      :alt="item.name"
+                      class="saved-place-thumb"
+                      @error="(e) => { e.target.src = defaultThumbnail }"
+                    />
+                    <button
+                      type="button"
+                      class="saved-place-heart-btn"
+                      aria-label="즐겨찾기 해제"
+                      @click.stop="handleToggleFavoriteFromMyPage(item)"
+                    >
+                      <svg class="saved-place-heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          class="saved-place-heart-path"
+                          d="M12 20.25c-.32 0-.64-.1-.9-.3-.76-.56-1.45-1.09-2.08-1.56-2.53-1.92-4.42-3.36-4.42-5.89C4.6 9.5 6.1 8 7.92 8c1.12 0 2.12.52 2.78 1.39L12 10.9l1.3-1.51C13.96 8.52 14.96 8 16.08 8 17.9 8 19.4 9.5 19.4 12.5c0 2.53-1.89 3.97-4.42 5.89-.63.47-1.32 1-2.08 1.56-.26.2-.58.3-.9.3Z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                  <div class="saved-place-info">
+                    <div class="saved-place-header-row">
+                      <p class="saved-place-name">{{ item.name }}</p>
+                      <button
+                        type="button"
+                        class="saved-place-external-btn"
+                        aria-label="지도에서 보기"
+                        @click="openFavoriteExternal(item)"
+                      >
+                        <img
+                          :src="externalLinkIcon"
+                          alt=""
+                          class="saved-place-external-icon"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </div>
+                    <p class="saved-place-category">{{ getFavoriteCategory(item) }}</p>
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div
+            v-if="totalSavedPlacePages > 1"
+            class="saved-section-pagination"
+          >
+            <button
+              type="button"
+              class="saved-pagination-arrow"
+              aria-label="이전 페이지"
+              :disabled="placePage <= 1"
+              @click="setSavedPlacePage(placePage - 1)"
+            >
+              ‹
+            </button>
+            <div class="saved-pagination-numbers">
+              <button
+                v-for="n in totalSavedPlacePages"
+                :key="n"
+                type="button"
+                class="saved-pagination-num"
+                :class="{ 'saved-pagination-num--current': n === placePage }"
+                @click="setSavedPlacePage(n)"
+              >
+                {{ n }}
+              </button>
+            </div>
+            <button
+              type="button"
+              class="saved-pagination-arrow"
+              aria-label="다음 페이지"
+              :disabled="placePage >= totalSavedPlacePages"
+              @click="setSavedPlacePage(placePage + 1)"
+            >
+              ›
+            </button>
+          </div>
+        </section>
+      </template>
+
       <!-- 지난 결과 내역 전용 섹션 -->
-      <template v-else>
+      <template v-else-if="activeMainSection === MAIN_SECTION.HISTORY">
         <section class="section section--bottom-space" aria-labelledby="section-history-title">
           <div class="section-head section-head--history">
             <h2 id="section-history-title" class="section-title">지난 결과 내역</h2>
@@ -1250,6 +1428,12 @@ const currentProfileIndex = computed(() => {
   cursor: pointer;
 }
 
+.menu-1depth--history:hover {
+  background-color: #fff0ea;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
+}
+
 .menu-1depth--history:focus-visible {
   outline: 2px solid #ff5531;
   outline-offset: 2px;
@@ -1316,6 +1500,297 @@ const currentProfileIndex = computed(() => {
   background-color: #fff0ea;
   font-weight: 700;
   color: #ff5531;
+}
+
+/* 내 저장 섹션 (저장한 필터 + 저장한 장소) */
+.saved-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 1254px;
+  margin: 0;
+}
+
+.saved-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.saved-section-title {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.35;
+  color: #31373c;
+  margin: 0;
+}
+
+.saved-section-btn {
+  padding: 8px 12px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.35;
+  color: #3c4043;
+  background: #ffffff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.saved-section-btn:hover {
+  background-color: #f1f3f4;
+}
+
+.saved-section-btn--active {
+  font-weight: 700;
+}
+
+.saved-section-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.saved-section-contents {
+  width: 100%;
+}
+
+.saved-section-contents--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+}
+
+.saved-section-empty-text {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 400;
+  font-size: 24px;
+  line-height: normal;
+  color: #dadce0;
+  margin: 0;
+}
+
+.saved-section-contents--cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 18px 24px;
+  /* 3줄 + 여유만 확보 → 페이지네이션 미세 움직임 방지, 여백은 최소화 */
+  min-height: 370px;
+}
+
+.saved-places-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px 24px;
+  align-content: flex-start;
+  width: 100%;
+}
+
+.saved-place-item {
+  list-style: none;
+  min-width: 0;
+}
+
+.saved-place-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 24px;
+  border: 1px solid #dadce0;
+  background-color: #ffffff;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.saved-place-thumb-wrap {
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  overflow: hidden;
+  background-color: #e8eaed;
+  position: relative;
+}
+
+.saved-place-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.saved-place-heart-btn {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  transition: background 0.18s ease-out, transform 0.18s ease-out;
+}
+
+.saved-place-heart-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+  transform: translateY(-1px) scale(1.05);
+}
+
+.saved-place-heart-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.saved-place-heart-path {
+  fill: #ff5531;
+  stroke: #ff5531;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.saved-place-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.saved-place-name {
+  margin: 0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  color: #202124;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saved-place-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.saved-place-category {
+  margin: 0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  color: #ff5531;
+}
+
+.saved-place-external-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.saved-place-external-btn:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.saved-place-external-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.saved-section-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 50px;
+  padding: 10px 0;
+  width: 100%;
+}
+
+.saved-pagination-arrow {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  color: #3c4043;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.saved-pagination-arrow:hover:not(:disabled) {
+  color: #ff5531;
+}
+
+.saved-pagination-arrow:disabled {
+  color: #dadce0;
+  cursor: not-allowed;
+}
+
+.saved-pagination-numbers {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.saved-pagination-num {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 4px;
+  background: #ffffff;
+  border: 1px solid #dadce0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.35;
+  color: #3c4043;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.saved-pagination-num:hover {
+  background-color: #f1f3f4;
+}
+
+.saved-pagination-num--current {
+  background: #3c4043;
+  border-color: #3c4043;
+  color: #ffffff;
 }
 
 .mypage-main {
@@ -1726,17 +2201,6 @@ const currentProfileIndex = computed(() => {
 .vote-list-item:hover {
   border-color: #ff5531;
   background-color: #fff5f3;
-}
-
-.vote-list-item--placeholder {
-  border-style: dashed;
-  border-color: #e8eaed;
-  background-color: #f8f9fa;
-  cursor: default;
-}
-
-.vote-list-item--placeholder .vote-list-title {
-  color: #9aa0a6;
 }
 
 .vote-list-item--roulette {

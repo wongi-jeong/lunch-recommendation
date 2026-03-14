@@ -2,56 +2,52 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
-import profileIcon from '@/assets/profile-icon.svg'
+import profileIcon from '@/assets/icon-profile-default.svg'
 import logoImage from '@/assets/logo-mechu.svg'
+import profileAvatar1 from '@/assets/avatar-1.png'
+import profileAvatar2 from '@/assets/avatar-2.png'
+import profileAvatar3 from '@/assets/avatar-3.png'
+import profileAvatar4 from '@/assets/avatar-4.png'
+import profileAvatar5 from '@/assets/avatar-5.png'
+import profileAvatar6 from '@/assets/avatar-6.png'
+import profileAvatar7 from '@/assets/avatar-7.png'
+import profileAvatar8 from '@/assets/avatar-8.png'
 
 const router = useRouter()
 const route = useRoute()
-const { isLoggedIn, clearAuth, getToken } = useAuth()
+const { isLoggedIn, clearAuth, getToken, profileImageIndex } = useAuth()
+
+const profileOptions = [profileAvatar1, profileAvatar2, profileAvatar3, profileAvatar4, profileAvatar5, profileAvatar6, profileAvatar7, profileAvatar8]
+const headerProfileImage = computed(() => {
+  if (!isLoggedIn.value) return profileIcon
+  const idx = Math.max(0, Math.min(7, Number(profileImageIndex.value) || 0))
+  return profileOptions[idx]
+})
 
 const notifications = ref([])
-const hasUnreadNotification = ref(false)
 const showNotificationPopup = ref(false)
 const notificationWrapperRef = ref(null)
 let notificationTimer = null
 
+/** 표시되는 최대 5개 알림 중 미읽음 개수. 배지 표시/숫자에 사용 */
+const displayedUnreadCount = computed(() =>
+  notifications.value
+    .slice(0, 5)
+    .filter((n) => !n.isRead)
+    .length
+)
+const hasUnreadNotification = computed(() => displayedUnreadCount.value > 0)
+
 const VOTE_TTL_MS = 7 * 24 * 60 * 60 * 1000
-
-const loadSeenNotifications = (token) => {
-  if (!token) return new Set()
-  try {
-    const raw = localStorage.getItem(`vote_notifications_seen_${token}`)
-    if (!raw) return new Set()
-    const arr = JSON.parse(raw)
-    if (!Array.isArray(arr)) return new Set()
-    return new Set(arr)
-  } catch {
-    return new Set()
-  }
-}
-
-const saveSeenNotifications = (token, seenSet) => {
-  if (!token) return
-  try {
-    localStorage.setItem(
-      `vote_notifications_seen_${token}`,
-      JSON.stringify(Array.from(seenSet))
-    )
-  } catch {
-    // ignore
-  }
-}
 
 const syncNotifications = async () => {
   const token = getToken()
   if (!token) {
     notifications.value = []
-    hasUnreadNotification.value = false
     return
   }
 
   const now = Date.now()
-  const seenSet = loadSeenNotifications(token)
   const endedVotes = []
 
   // 1) 로컬에 남아 있는 "내가 만든 투표"들에 대해서는
@@ -116,7 +112,6 @@ const syncNotifications = async () => {
     if (!res.ok) {
       if (res.status === 401) {
         notifications.value = []
-        hasUnreadNotification.value = false
         return
       }
     } else {
@@ -134,7 +129,7 @@ const syncNotifications = async () => {
             id: vote.id,
             title: vote.title || '점심 메뉴 투표',
             endedAt,
-            isRead: seenSet.has(vote.id)
+            isRead: vote.isRead === true
           })
         })
       }
@@ -148,7 +143,6 @@ const syncNotifications = async () => {
   )
 
   notifications.value = endedVotes
-  hasUnreadNotification.value = endedVotes.some((n) => !n.isRead)
 }
 
 const toggleNotificationPopup = async () => {
@@ -172,21 +166,25 @@ const handleGlobalClick = (event) => {
   showNotificationPopup.value = false
 }
 
-const goToVoteResultFromNotification = (id) => {
+const goToVoteResultFromNotification = async (id) => {
   showNotificationPopup.value = false
 
   if (id) {
     const token = getToken()
     if (token) {
-      const seenSet = loadSeenNotifications(token)
-      seenSet.add(id)
-      saveSeenNotifications(token, seenSet)
+      try {
+        await fetch(`/api/votes/${id}/notification-read`, {
+          method: 'PATCH',
+          headers: { 'X-Auth-Token': token }
+        })
+      } catch {
+        // 실패해도 화면에서는 읽음 처리 유지
+      }
     }
 
     notifications.value = notifications.value.map((item) =>
       item.id === id ? { ...item, isRead: true } : item
     )
-    hasUnreadNotification.value = notifications.value.some((n) => !n.isRead)
 
     router.push(`/vote/${id}`)
   }
@@ -291,8 +289,10 @@ const setActiveTab = (tab) => {
             <span
               v-if="hasUnreadNotification"
               class="notification-badge"
-              aria-hidden="true"
-            ></span>
+              aria-label="읽지 않은 알림 {{ displayedUnreadCount }}개"
+            >
+              {{ displayedUnreadCount > 9 ? '9+' : displayedUnreadCount }}
+            </span>
           </button>
           <Transition name="popover-fade">
             <div
@@ -340,7 +340,7 @@ const setActiveTab = (tab) => {
           </Transition>
         </div>
         <button class="user-button" type="button" aria-label="마이페이지" @click="goToMyPage">
-          <img :src="profileIcon" alt="" class="profile-icon" aria-hidden="true" />
+          <img :src="headerProfileImage" alt="" class="profile-icon" :class="{ 'profile-icon--avatar': isLoggedIn }" aria-hidden="true" />
           <p class="user-button-text">마이</p>
         </button>
         <button class="user-button" type="button" @click="handleAuthButtonClick">
@@ -474,12 +474,20 @@ const setActiveTab = (tab) => {
 
 .notification-badge {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
   background-color: #ff5531;
+  color: #fff;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .notification-popup {
@@ -597,6 +605,11 @@ const setActiveTab = (tab) => {
   height: 24px;
   flex-shrink: 0;
   display: block;
+}
+
+.profile-icon--avatar {
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .user-button-text {

@@ -116,6 +116,18 @@ public class VoteController {
 		return ResponseEntity.ok(updated);
 	}
 
+	/**
+	 * 종료된 투표 알림 읽음 처리. 본인 투표만 가능.
+	 */
+	@PatchMapping("/{id}/notification-read")
+	public ResponseEntity<Void> markNotificationRead(
+			@RequestHeader(value = "X-Auth-Token", required = false) String token,
+			@PathVariable("id") String id) {
+		MemberService.InvalidCredentialsException.requireToken(token);
+		voteService.markNotificationRead(token, id);
+		return ResponseEntity.noContent().build();
+	}
+
 	@ExceptionHandler(IllegalArgumentException.class)
 	public ResponseEntity<AuthController.ErrorResponse> handleBadRequest(IllegalArgumentException ex) {
 		return ResponseEntity.badRequest().body(new AuthController.ErrorResponse(ex.getMessage()));

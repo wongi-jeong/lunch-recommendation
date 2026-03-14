@@ -5,7 +5,7 @@ import { useAuth } from '@/composables/useAuth'
 import VoteCreateOptionList from './VoteCreateOptionList.vue'
 import VoteCreateTimerSection from './VoteCreateTimerSection.vue'
 import VoteCreatePopup from './VoteCreatePopup.vue'
-import defaultThumbnail from '@/assets/restaurant-thumbnail-default.png'
+import defaultThumbnail from '@/assets/img-placeholder-restaurant.png'
 
 const router = useRouter()
 const route = useRoute()

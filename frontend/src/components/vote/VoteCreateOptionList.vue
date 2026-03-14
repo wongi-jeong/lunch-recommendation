@@ -56,7 +56,7 @@ const { restaurants, selectedItems, getPhotoUrl, handleImageError, openExternalL
             @click.stop="openExternalLink(restaurant)"
             aria-label="Google 지도에서 보기"
           >
-            <img src="@/assets/external-link-icon.svg" alt="외부 링크" class="option-external-icon" />
+            <img src="@/assets/icon-external-link.svg" alt="외부 링크" class="option-external-icon" />
           </button>
         </div>
         <div class="option-text">
@@ -68,7 +68,7 @@ const { restaurants, selectedItems, getPhotoUrl, handleImageError, openExternalL
             </span>
             <span class="option-dot">·</span>
             <span class="option-rating">
-              <img src="@/assets/star-icon.svg" alt="별점" class="option-star-icon" />
+              <img src="@/assets/icon-star.svg" alt="별점" class="option-star-icon" />
               {{ restaurant.rating ? restaurant.rating.toFixed(1) : '0.0' }}
             </span>
             <span class="option-dot">·</span>

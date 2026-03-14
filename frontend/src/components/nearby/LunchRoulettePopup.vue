@@ -72,7 +72,7 @@
           </svg>
 
           <img
-            src="@/assets/roulette-pointer.svg"
+            src="@/assets/icon-roulette-pointer.svg"
             alt=""
             class="roulette-pointer"
             aria-hidden="true"
@@ -120,7 +120,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
-import wheelAccessory from '@/assets/roulette-wheel-frame.svg'
+import wheelAccessory from '@/assets/icon-roulette-wheel.svg'
 
 const SEGMENT_COLORS = ['#26824E', '#5BC086', '#A1D9B7', '#34A666', '#7DCE9B']
 const SEGMENT_COLORS_2 = ['#D9F0E0', '#5FCB7F']

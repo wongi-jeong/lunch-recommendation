@@ -11,7 +11,7 @@ import LoginRequiredModal from '../LoginRequiredModal.vue'
 
 const router = useRouter()
 const { isLoggedIn } = useAuth()
-const { favorites, addFavorite, removeFavorite } = useFavorites()
+const { favorites, addFavorite, removeFavorite, syncFromServer } = useFavorites()
 
 const apiKey = ref('')
 const filters = ref({
@@ -85,6 +85,10 @@ onMounted(() => {
     console.warn('Google Maps API 키가 설정되지 않았습니다.')
     console.warn('환경변수 GOOGLE_MAPS_API_KEY 또는 .env 파일의 VITE_GOOGLE_MAPS_API_KEY를 설정해주세요.')
   }
+  // 로그인 사용자: DB 즐겨찾기를 불러와 바텀시트 하트 상태에 반영
+  if (isLoggedIn.value) {
+    syncFromServer()
+  }
 })
 
 // 검색된 식당 목록
@@ -113,6 +117,10 @@ const closeNoResultsModal = () => {
 const MAX_RADIUS = 1200 // FilterPanel distanceOptions 최대값
 
 const favoriteIds = computed(() => favorites.value.map((f) => f.id))
+
+// 동일 식당 연속 토글 방지 (저장되었다가 바로 해제되는 버그 방지)
+const TOGGLE_DEBOUNCE_MS = 600
+const lastToggledFavorite = ref({ id: null, at: 0 })
 
 const normalizeRestaurantForFavorite = (item) => {
   if (!item) return null
@@ -148,6 +156,13 @@ const toggleFavoriteRestaurant = (rawItem) => {
 
   const normalized = normalizeRestaurantForFavorite(rawItem)
   if (!normalized) return
+
+  const now = Date.now()
+  const { id: lastId, at: lastAt } = lastToggledFavorite.value
+  if (lastId === normalized.id && now - lastAt < TOGGLE_DEBOUNCE_MS) {
+    return
+  }
+  lastToggledFavorite.value = { id: normalized.id, at: now }
 
   const exists = favorites.value.some((f) => f.id === normalized.id)
   if (exists) {
@@ -291,6 +306,11 @@ const handleRecommend = async () => {
     
     const data = await response.json()
     restaurants.value = data
+
+    // 로그인 사용자: DB 즐겨찾기와 동기화해 바텀시트 카드 하트가 맞게 표시되도록 함
+    if (isLoggedIn.value) {
+      await syncFromServer()
+    }
 
     // 추천 식당 정보 출력
     console.log('=== 추천 식당 리스트 (최대 5개) ===')

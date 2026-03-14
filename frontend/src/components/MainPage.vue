@@ -1,10 +1,10 @@
 <script setup>
 import { ref } from 'vue'
-import forkImg from '@/assets/fork-icon.svg'
-import spoonImg from '@/assets/spoon-icon.svg'
-import plateImg from '@/assets/plate-icon.svg'
-import mainHamburgerImg from '@/assets/main-hamburger-image.png'
-import arrowRightIcon from '@/assets/arrow-right-icon.svg'
+import forkImg from '@/assets/icon-fork.svg'
+import spoonImg from '@/assets/icon-spoon.svg'
+import plateImg from '@/assets/icon-plate.svg'
+import mainHamburgerImg from '@/assets/img-main-hero.png'
+import arrowRightIcon from '@/assets/icon-arrow-right.svg'
 
 const isMouseLeft = ref(false)
 const isMouseRight = ref(false)

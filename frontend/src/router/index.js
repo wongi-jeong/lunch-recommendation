@@ -70,6 +70,10 @@ const routes = [
     name: 'my',
     component: MyPage,
     meta: { title: '마이페이지 - MECHU', requiresAuth: true }
+  },
+  {
+    path: '/my/saved',
+    redirect: () => ({ path: '/my', query: { section: 'saved' } })
   }
 ]
 
