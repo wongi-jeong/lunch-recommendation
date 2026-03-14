@@ -1,4 +1,6 @@
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
   winnerOption: {
     type: Object,
@@ -24,6 +26,21 @@ const props = defineProps({
     type: Function,
     required: true
   }
+})
+
+// DB에 저장된 식당 위치(위·경도 또는 place_id)로 Google Maps embed URL 생성
+const googleMapsEmbedUrl = computed(() => {
+  const opt = props.winnerOption
+  const lat = opt?.latitude != null ? Number(opt.latitude) : null
+  const lng = opt?.longitude != null ? Number(opt.longitude) : null
+  if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+    return `https://www.google.com/maps?output=embed&q=${lat},${lng}&z=17`
+  }
+  const placeId = opt?.googlePlaceId
+  if (placeId) {
+    return `https://www.google.com/maps?output=embed&q=place_id:${encodeURIComponent(placeId)}&z=17`
+  }
+  return ''
 })
 </script>
 
@@ -126,6 +143,23 @@ const props = defineProps({
             </span>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 식당 위치: DB 저장 위·경도 또는 place_id로 지도 표시 -->
+    <div v-if="googleMapsEmbedUrl" class="result-card__map c-card-sales__map">
+      <p v-if="winnerOption.address" class="result-card-map-address">{{ winnerOption.address }}</p>
+      <div id="js-gmap-main" class="result-card__gmap c-gmap-multiple">
+        <iframe
+          :src="googleMapsEmbedUrl"
+          width="600"
+          height="450"
+          style="border:0;"
+          allowfullscreen
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          title="식당 위치 지도"
+        />
       </div>
     </div>
   </div>

@@ -157,6 +157,41 @@
   color: #3c4043;
 }
 
+/* 식당 위치 (result-card 하단) - c-card-sales__map / c-gmap-multiple 구조 */
+.result-card__map.c-card-sales__map {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #e8eaed;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-card-map-address {
+  margin: 0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #5f6368;
+  word-break: keep-all;
+}
+
+.result-card__gmap.c-gmap-multiple {
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 600 / 450;
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: #e8eaed;
+}
+
+.result-card__gmap.c-gmap-multiple iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 /* ===== 투표 폼 ===== */
 .vote-form {
   background-color: #fff;

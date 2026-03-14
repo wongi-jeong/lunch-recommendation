@@ -69,6 +69,8 @@ public class VoteCreateRequest {
 		private Double rating;
 		private Boolean openNow;
 		private List<String> categories;
+		private Double latitude;
+		private Double longitude;
 
 		public String getName() {
 			return name;
@@ -124,6 +126,22 @@ public class VoteCreateRequest {
 
 		public void setCategories(List<String> categories) {
 			this.categories = categories;
+		}
+
+		public Double getLatitude() {
+			return latitude;
+		}
+
+		public void setLatitude(Double latitude) {
+			this.latitude = latitude;
+		}
+
+		public Double getLongitude() {
+			return longitude;
+		}
+
+		public void setLongitude(Double longitude) {
+			this.longitude = longitude;
 		}
 	}
 }

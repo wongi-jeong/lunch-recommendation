@@ -435,7 +435,9 @@ const handleVoteCreate = () => {
     photoName: r.photoName || null,
     rating: typeof r.rating === 'number' ? r.rating : null,
     openNow: r.openNow ?? null,
-    categories: filterCategories.length > 0 ? filterCategories : ['식당']
+    categories: filterCategories.length > 0 ? filterCategories : ['식당'],
+    latitude: r.latitude ?? r.lat ?? null,
+    longitude: r.longitude ?? r.lng ?? null
   }))
 
   const encoded = encodeURIComponent(JSON.stringify(data))
@@ -473,7 +475,9 @@ const goToLoginFromModal = () => {
     photoName: r.photoName || null,
     rating: typeof r.rating === 'number' ? r.rating : null,
     openNow: r.openNow ?? null,
-    categories: filterCategories.length > 0 ? filterCategories : ['식당']
+    categories: filterCategories.length > 0 ? filterCategories : ['식당'],
+    latitude: r.latitude ?? r.lat ?? null,
+    longitude: r.longitude ?? r.lng ?? null
   }))
   const encoded = encodeURIComponent(JSON.stringify(data))
   try {

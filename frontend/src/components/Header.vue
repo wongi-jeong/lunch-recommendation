@@ -230,7 +230,7 @@ const goToMyPage = () => {
 const tabs = [
   { id: 'ai', path: '/ai', label: 'AI 추천' },
   { id: 'near', path: '/nearby', label: '내 근처 추천' },
-  { id: 'favorites', path: '/', label: '즐겨찾기' }
+  { id: 'favorites', path: '/my/saved', label: '즐겨찾기' }
 ]
 
 const visibleTabs = computed(() =>
@@ -239,10 +239,12 @@ const visibleTabs = computed(() =>
 
 const activeTabId = computed(() => {
   const path = route.path
+  const section = route.query?.section
 
   if (path === '/nearby') return 'near'
   if (path === '/ai') return 'ai'
-  // 메인(/)은 상단 카테고리에 해당하지 않음 → 어떤 탭도 강조하지 않음
+  // 마이페이지 내 저장(/my?section=saved 또는 /my/saved)이면 즐겨찾기 탭 활성
+  if (path === '/my' && section === 'saved') return 'favorites'
   if (path === '/') return null
 
   return tabs.find((t) => t.path !== '/' && path.startsWith(t.path))?.id ?? null

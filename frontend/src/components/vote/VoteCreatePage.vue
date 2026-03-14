@@ -100,7 +100,9 @@ const handleCreate = async () => {
       photoName: r.photoName,
       rating: r.rating,
       openNow: r.openNow ?? null,
-      categories: r.categories
+      categories: r.categories,
+      latitude: r.latitude ?? null,
+      longitude: r.longitude ?? null
     }))
 
   const payload = {
