@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useFavorites } from '@/composables/useFavorites'
 import profileIcon from '@/assets/profile-icon.svg'
 import profileEditIcon from '@/assets/profile-edit-icon.svg'
 import profileAvatar1 from '@/assets/profile-avatar-1.png'
@@ -17,10 +18,12 @@ import externalLinkIcon from '@/assets/external-link-icon.svg'
 import ProfileChangeModal from '@/components/ProfileChangeModal.vue'
 
 const route = useRoute()
+const router = useRouter()
 const { getToken, profileImageIndex: authProfileIndex, setProfileImageIndex: setAuthProfileIndex } = useAuth()
 const profileOptions = [profileAvatar1, profileAvatar2, profileAvatar3, profileAvatar4, profileAvatar5, profileAvatar6, profileAvatar7, profileAvatar8]
 
 const currentProfileImage = ref(profileAvatar1)
+const { removeFavorite: removeLocalFavorite } = useFavorites()
 const showProfileChangeModal = ref(false)
 const memberEmail = ref('')
 const emailLoadError = ref('')
@@ -37,6 +40,56 @@ const rouletteHistory = ref([])
 
 // 즐겨찾기 (최근 즐겨찾기 한 장소) - 회원 DB 기반
 const memberFavorites = ref([])
+
+// 실시간 남은 시간 계산용
+const now = ref(Date.now())
+let timerInterval = null
+
+function applyOngoingVoteTimers() {
+  if (!Array.isArray(ongoingVotes.value) || ongoingVotes.value.length === 0) return
+
+  const nowMs = Date.now()
+  const stillOngoing = []
+  const newlyEnded = []
+
+  for (const vote of ongoingVotes.value) {
+    if (!vote || !vote.timer || vote.timer === 'none' || !vote.createdAt) {
+      stillOngoing.push(vote)
+      continue
+    }
+
+    const durationMs =
+      {
+        '10min': 10 * 60 * 1000,
+        '30min': 30 * 60 * 1000,
+        '1hour': 60 * 60 * 1000
+      }[vote.timer] || 0
+
+    if (!durationMs) {
+      stillOngoing.push(vote)
+      continue
+    }
+
+    const endTime = new Date(vote.createdAt).getTime() + durationMs
+    if (Number.isNaN(endTime) || nowMs < endTime) {
+      stillOngoing.push(vote)
+      continue
+    }
+
+    // 타이머가 만료된 투표는 진행중 목록에서 제거하고 종료 목록으로 이동
+    const endedAt = vote.endedAt || new Date(endTime).toISOString()
+    newlyEnded.push({
+      ...vote,
+      ended: true,
+      endedAt
+    })
+  }
+
+  if (newlyEnded.length > 0) {
+    ongoingVotes.value = stillOngoing
+    endedVotes.value = [...endedVotes.value, ...newlyEnded]
+  }
+}
 
 const latestFavorites = computed(() => {
   if (!memberFavorites.value || memberFavorites.value.length === 0) return []
@@ -81,6 +134,10 @@ const handleToggleFavoriteFromMyPage = (item) => {
   if (!item?.id) return
   const token = getToken()
   if (!token) return
+
+   // 로컬 즐겨찾기(근처 추천용)에서도 함께 제거
+  removeLocalFavorite(item.id)
+
   fetch(`/api/favorites/${encodeURIComponent(item.id)}`, {
     method: 'DELETE',
     headers: {
@@ -98,6 +155,26 @@ const totalOngoingPages = computed(() => {
 const totalEndedPages = computed(() => {
   return Math.max(1, Math.ceil(endedVotes.value.length / PAGE_SIZE))
 })
+
+// 마이페이지 메인 섹션 (내 정보 / 지난 결과 내역)
+const MAIN_SECTION = {
+  INFO: 'info',
+  HISTORY: 'history'
+}
+
+const activeMainSection = ref(MAIN_SECTION.INFO)
+
+// 마이페이지 내 하위 탭 (내 정보 / 개인정보동의 / 회원탈퇴)
+const MY_SUB_SECTION = {
+  INFO: 'info',
+  PRIVACY: 'privacy',
+  WITHDRAW: 'withdraw'
+}
+
+const activeMySubSection = ref(MY_SUB_SECTION.INFO)
+
+// 마이페이지 사이드 메뉴 토글 (펼치기/접기)
+const isMyMenuOpen = ref(true)
 
 const pagedOngoingVotes = computed(() => {
   const start = (ongoingPage.value - 1) * PAGE_SIZE
@@ -151,6 +228,53 @@ const limitedRecentResults = computed(() => {
   return combinedRecentResults.value.slice(0, 3)
 })
 
+// 지난 결과 내역 전용 페이지네이션 / 필터
+const HISTORY_PAGE_SIZE = 10
+const historyPage = ref(1)
+const historyFilter = ref('all') // 'all' | 'vote' | 'roulette'
+
+const filteredHistoryResults = computed(() => {
+  if (historyFilter.value === 'vote') {
+    return combinedRecentResults.value.filter((item) => item.type === 'vote')
+  }
+  if (historyFilter.value === 'roulette') {
+    return combinedRecentResults.value.filter((item) => item.type === 'roulette')
+  }
+  return combinedRecentResults.value
+})
+
+const totalHistoryPages = computed(() => {
+  return Math.max(1, Math.ceil(filteredHistoryResults.value.length / HISTORY_PAGE_SIZE))
+})
+
+const pagedHistoryResults = computed(() => {
+  const start = (historyPage.value - 1) * HISTORY_PAGE_SIZE
+  return filteredHistoryResults.value.slice(start, start + HISTORY_PAGE_SIZE)
+})
+
+watch(historyFilter, () => {
+  historyPage.value = 1
+})
+
+const setHistoryPage = (page) => {
+  const target = Number(page)
+  if (Number.isNaN(target)) return
+  if (target < 1 || target > totalHistoryPages.value) return
+  historyPage.value = target
+}
+
+const goPrevHistoryPage = () => {
+  if (historyPage.value > 1) {
+    historyPage.value -= 1
+  }
+}
+
+const goNextHistoryPage = () => {
+  if (historyPage.value < totalHistoryPages.value) {
+    historyPage.value += 1
+  }
+}
+
 function applyProfileIndex(idx) {
   const n = typeof idx === 'number' ? idx : parseInt(idx, 10)
   if (!Number.isNaN(n) && n >= 0 && n < profileOptions.length) {
@@ -195,6 +319,7 @@ async function fetchOngoingVotes() {
     if (res.ok) {
       const data = await res.json()
       ongoingVotes.value = Array.isArray(data) ? data : []
+      applyOngoingVoteTimers()
     } else {
       ongoingVotes.value = []
     }
@@ -267,6 +392,38 @@ async function fetchMemberFavorites() {
     memberFavorites.value = Array.isArray(data) ? data : []
   } catch {
     memberFavorites.value = []
+  }
+}
+
+function getOngoingTimerDisplay(vote) {
+  if (!vote || !vote.timer || vote.timer === 'none' || !vote.createdAt) return null
+
+  const durationMs =
+    {
+      '10min': 10 * 60 * 1000,
+      '30min': 30 * 60 * 1000,
+      '1hour': 60 * 60 * 1000
+    }[vote.timer] || 0
+
+  if (!durationMs) return null
+
+  const endTime = new Date(vote.createdAt).getTime() + durationMs
+  const remaining = endTime - now.value
+  if (!Number.isFinite(remaining)) return null
+
+  if (remaining <= 0) {
+    return {
+      hours: '00',
+      minutes: '00',
+      seconds: '00'
+    }
+  }
+
+  const totalSec = Math.floor(remaining / 1000)
+  return {
+    hours: String(Math.floor(totalSec / 3600)).padStart(2, '0'),
+    minutes: String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0'),
+    seconds: String(totalSec % 60).padStart(2, '0')
   }
 }
 
@@ -345,16 +502,38 @@ function formatVoteDate(isoString) {
   })
 }
 
-watch(() => route.path, (path) => {
-  if (path === '/my') {
-    applyProfileIndex(authProfileIndex.value)
-    fetchMe()
-    fetchOngoingVotes()
-    fetchEndedVotes()
-    loadRouletteHistory()
-    fetchMemberFavorites()
+function syncSectionFromRoute() {
+  if (route.path !== '/my') return
+  const { section, filter } = route.query
+
+  if (section === 'history') {
+    activeMainSection.value = MAIN_SECTION.HISTORY
+  } else {
+    activeMainSection.value = MAIN_SECTION.INFO
   }
-}, { immediate: true })
+
+  if (filter === 'vote' || filter === 'roulette') {
+    historyFilter.value = filter
+  } else {
+    historyFilter.value = 'all'
+  }
+}
+
+watch(
+  () => route.fullPath,
+  (fullPath) => {
+    if (route.path === '/my') {
+      applyProfileIndex(authProfileIndex.value)
+      fetchMe()
+      fetchOngoingVotes()
+      fetchEndedVotes()
+      loadRouletteHistory()
+      fetchMemberFavorites()
+      syncSectionFromRoute()
+    }
+  },
+  { immediate: true }
+)
 
 const handlePageshow = () => {
   if (route.path === '/my') {
@@ -367,10 +546,18 @@ const handlePageshow = () => {
 }
 
 onMounted(() => {
+  timerInterval = setInterval(() => {
+    now.value = Date.now()
+    applyOngoingVoteTimers()
+  }, 1000)
   window.addEventListener('pageshow', handlePageshow)
 })
 
 onUnmounted(() => {
+  if (timerInterval) {
+    clearInterval(timerInterval)
+    timerInterval = null
+  }
   window.removeEventListener('pageshow', handlePageshow)
 })
 
@@ -460,226 +647,499 @@ const currentProfileIndex = computed(() => {
           </p>
         </div>
         <div class="divider" aria-hidden="true"></div>
-        <div class="menu-1depth">
+        <div
+          class="menu-1depth menu-1depth--with-arrow menu-1depth--clickable"
+          role="button"
+          tabindex="0"
+          @click="isMyMenuOpen = !isMyMenuOpen"
+        >
           <p class="menu-1depth-title">마이페이지</p>
+          <span
+            class="menu-arrow"
+            :class="{ 'menu-arrow--collapsed': !isMyMenuOpen }"
+            aria-hidden="true"
+          >
+            ▼
+          </span>
         </div>
-        <nav class="sub-menu" aria-label="마이페이지 하위 메뉴">
-          <div class="sub-menu-item sub-menu-item--selected">내 정보</div>
-          <div class="sub-menu-item">개인정보동의</div>
-          <div class="sub-menu-item">회원탈퇴</div>
+        <nav
+          class="sub-menu"
+          aria-label="마이페이지 하위 메뉴"
+          v-show="isMyMenuOpen"
+        >
+          <div
+            class="sub-menu-item"
+            :class="{
+              'sub-menu-item--selected':
+                activeMainSection === MAIN_SECTION.INFO && activeMySubSection === MY_SUB_SECTION.INFO
+            }"
+            role="button"
+            tabindex="0"
+            @click="
+              activeMySubSection = MY_SUB_SECTION.INFO;
+              activeMainSection = MAIN_SECTION.INFO
+            "
+          >
+            내 정보
+          </div>
+          <div
+            class="sub-menu-item"
+            :class="{
+              'sub-menu-item--selected':
+                activeMainSection === MAIN_SECTION.INFO && activeMySubSection === MY_SUB_SECTION.PRIVACY
+            }"
+            role="button"
+            tabindex="0"
+            @click="
+              activeMySubSection = MY_SUB_SECTION.PRIVACY;
+              activeMainSection = MAIN_SECTION.INFO
+            "
+          >
+            개인정보동의
+          </div>
+          <div
+            class="sub-menu-item"
+            :class="{
+              'sub-menu-item--selected':
+                activeMainSection === MAIN_SECTION.INFO && activeMySubSection === MY_SUB_SECTION.WITHDRAW
+            }"
+            role="button"
+            tabindex="0"
+            @click="
+              activeMySubSection = MY_SUB_SECTION.WITHDRAW;
+              activeMainSection = MAIN_SECTION.INFO
+            "
+          >
+            회원탈퇴
+          </div>
         </nav>
-        <div class="menu-1depth menu-1depth--with-arrow">
+        <div class="menu-1depth">
           <p class="menu-1depth-title">내 저장</p>
-          <span class="menu-arrow" aria-hidden="true">▼</span>
         </div>
-        <div class="menu-1depth menu-1depth--with-arrow">
+        <button
+          type="button"
+          class="menu-1depth menu-1depth--history"
+          :class="{ 'menu-1depth--selected': activeMainSection === MAIN_SECTION.HISTORY }"
+          @click="
+            activeMainSection = MAIN_SECTION.HISTORY;
+            router.replace({
+              path: '/my',
+              query: {
+                section: 'history',
+                filter: historyFilter
+              }
+            })
+          "
+        >
           <p class="menu-1depth-title">지난 결과 내역</p>
-          <span class="menu-arrow" aria-hidden="true">▼</span>
-        </div>
+        </button>
       </div>
     </aside>
 
     <main class="mypage-main">
-      <section class="section" aria-labelledby="section-info-title">
-        <h2 id="section-info-title" class="section-title">내 정보</h2>
-        <div class="section-contents section-contents--row">
-          <div class="thumbnail-wrap">
-            <div class="thumbnail thumbnail--large">
-              <img :src="currentProfileImage" alt="" class="thumbnail-img" aria-hidden="true" />
+      <!-- 내 정보 / 개인정보동의 / 회원탈퇴 탭 섹션 -->
+      <template v-if="activeMainSection === MAIN_SECTION.INFO">
+        <!-- 내 정보 (기존 마이페이지) -->
+        <template v-if="activeMySubSection === MY_SUB_SECTION.INFO">
+          <section class="section" aria-labelledby="section-info-title">
+            <h2 id="section-info-title" class="section-title">내 정보</h2>
+            <div class="section-contents section-contents--row">
+              <div class="thumbnail-wrap">
+                <div class="thumbnail thumbnail--large">
+                  <img :src="currentProfileImage" alt="" class="thumbnail-img" aria-hidden="true" />
+                  <button
+                    type="button"
+                    class="thumbnail-edit-btn"
+                    aria-label="프로필 사진 변경"
+                    @click="openProfileChangeModal"
+                  >
+                    <img :src="profileEditIcon" alt="" class="thumbnail-edit-icon" width="32" height="32" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <div class="account">
+                <div class="account-row">
+                  <span class="account-label">이메일</span>
+                  <span class="account-value">{{ memberEmail || (emailLoadError || '로딩 중...') }}</span>
+                </div>
+                <div class="account-row">
+                  <span class="account-label">비밀번호</span>
+                  <span class="account-value">********</span>
+                  <button type="button" class="btn-outlined">비밀번호 변경</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section" aria-labelledby="section-vote-title">
+            <h2 id="section-vote-title" class="section-title">현재 진행중인 투표</h2>
+            <div v-if="ongoingVotes.length === 0" class="section-contents section-contents--empty">
+              <p class="empty-text">진행중인 투표가 없어요</p>
+            </div>
+            <div v-else class="section-contents section-contents--list section-contents--ongoing-votes">
+              <router-link
+                v-for="v in pagedOngoingVotes"
+                :key="v.id"
+                :to="`/vote/${v.id}`"
+                class="vote-list-item"
+              >
+                <div class="vote-list-main">
+                  <span class="result-label result-label--vote">투표</span>
+                  <span class="vote-list-title">{{ v.title }}</span>
+                </div>
+                <div class="vote-list-meta">
+                  <div
+                    v-if="getOngoingTimerDisplay(v)"
+                    class="vote-list-timer-row"
+                  >
+                    <span class="vote-list-timer-label">종료까지</span>
+                    <span class="vote-list-timer">
+                      {{ getOngoingTimerDisplay(v).hours }}시간
+                      {{ getOngoingTimerDisplay(v).minutes }}분
+                      {{ getOngoingTimerDisplay(v).seconds }}초 남음
+                    </span>
+                  </div>
+                  <span class="vote-list-date">{{ formatVoteDate(v.createdAt) }}</span>
+                </div>
+              </router-link>
+              <div
+                v-for="n in ongoingPlaceholderCount"
+                :key="`ongoing-placeholder-${n}`"
+                class="vote-list-item vote-list-item--placeholder"
+              >
+                <span class="vote-list-title">새로운 투표를 만들어보세요</span>
+                <span class="vote-list-date"> </span>
+              </div>
+            </div>
+            <div v-if="ongoingVotes.length > PAGE_SIZE" class="pagination">
               <button
                 type="button"
-                class="thumbnail-edit-btn"
-                aria-label="프로필 사진 변경"
-                @click="openProfileChangeModal"
+                class="pagination-arrow"
+                aria-label="이전"
+                :disabled="ongoingPage === 1"
+                @click="goPrevOngoingPage"
               >
-                <img :src="profileEditIcon" alt="" class="thumbnail-edit-icon" width="32" height="32" aria-hidden="true" />
+                ‹
+              </button>
+              <button
+                v-for="item in ongoingPageItems"
+                :key="item.key"
+                type="button"
+                class="pagination-page"
+                :class="{
+                  'pagination-page--current': item.type === 'number' && item.value === ongoingPage,
+                  'pagination-page--ellipsis': item.type === 'ellipsis'
+                }"
+                :disabled="item.type === 'ellipsis'"
+                @click="item.type === 'number' ? setOngoingPage(item.value) : null"
+              >
+                {{ item.label }}
+              </button>
+              <button
+                type="button"
+                class="pagination-arrow"
+                aria-label="다음"
+                :disabled="ongoingPage === totalOngoingPages"
+                @click="goNextOngoingPage"
+              >
+                ›
+              </button>
+            </div>
+          </section>
+
+          <section class="section" aria-labelledby="section-fav-title">
+            <div class="section-head">
+              <h2 id="section-fav-title" class="section-title">최근 즐겨찾기 한 장소</h2>
+              <button type="button" class="btn-ghost">전체보기</button>
+            </div>
+            <div v-if="latestFavorites.length === 0" class="section-contents section-contents--empty">
+              <p class="empty-text">즐겨찾기한 장소가 없어요</p>
+            </div>
+            <div v-else class="section-contents">
+              <ul class="favorites-list">
+                <li
+                  v-for="item in latestFavorites"
+                  :key="item.id"
+                  class="favorite-item"
+                >
+                  <div class="favorite-card">
+                    <div class="favorite-thumb-wrap">
+                      <img
+                        :src="getFavoriteImage(item)"
+                        :alt="item.name"
+                        class="favorite-thumb"
+                        @error="(e) => { e.target.src = defaultThumbnail }"
+                      />
+                      <button
+                        type="button"
+                        class="favorite-heart-button"
+                        aria-label="즐겨찾기 해제"
+                        @click.stop="handleToggleFavoriteFromMyPage(item)"
+                      >
+                        <svg
+                          class="favorite-heart-icon"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            class="favorite-heart-path"
+                            d="M12 20.25c-.32 0-.64-.1-.9-.3-.76-.56-1.45-1.09-2.08-1.56-2.53-1.92-4.42-3.36-4.42-5.89C4.6 9.5 6.1 8 7.92 8c1.12 0 2.12.52 2.78 1.39L12 10.9l1.3-1.51C13.96 8.52 14.96 8 16.08 8 17.9 8 19.4 9.5 19.4 12.5c0 2.53-1.89 3.97-4.42 5.89-.63.47-1.32 1-2.08 1.56-.26.2-.58.3-.9.3Z"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="favorite-info">
+                      <div class="favorite-header-row">
+                        <p class="favorite-name">
+                          {{ item.name }}
+                        </p>
+                        <button
+                          type="button"
+                          class="favorite-external-btn"
+                          aria-label="지도에서 보기"
+                          @click="openFavoriteExternal(item)"
+                        >
+                          <img
+                            :src="externalLinkIcon"
+                            alt=""
+                            class="favorite-external-icon"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      </div>
+                      <p class="favorite-category">
+                        {{ getFavoriteCategory(item) }}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="section section--bottom-space" aria-labelledby="section-result-title">
+            <div class="section-head">
+              <h2 id="section-result-title" class="section-title">최근 진행한 결과</h2>
+              <button
+                type="button"
+                class="btn-ghost"
+                @click="
+                  activeMainSection = MAIN_SECTION.HISTORY;
+                  router.replace({
+                    path: '/my',
+                    query: {
+                      section: 'history',
+                      filter: historyFilter
+                    }
+                  })
+                "
+              >
+                전체보기
+              </button>
+            </div>
+            <div
+              v-if="limitedRecentResults.length === 0"
+              class="section-contents section-contents--empty"
+            >
+              <p class="empty-text">진행한 결과가 없어요</p>
+            </div>
+            <div v-else class="section-contents section-contents--list">
+              <router-link
+                v-for="item in limitedRecentResults"
+                :key="`${item.type}-${item.id}-${item.createdAt}`"
+                :to="
+                  item.type === 'vote'
+                    ? `/vote/${item.id}`
+                    : { name: 'rouletteShare', query: { data: item.shareData, fromHistory: 'true' } }
+                "
+                class="vote-list-item"
+              >
+                <div class="vote-list-main">
+                  <span
+                    class="result-label"
+                    :class="item.type === 'vote' ? 'result-label--vote' : 'result-label--roulette'"
+                  >
+                    {{ item.type === 'vote' ? '투표' : '룰렛' }}
+                  </span>
+                  <span class="vote-list-title">
+                    {{ item.type === 'vote' ? item.title : '오늘 점심은 여기로 결정!' }}
+                  </span>
+                </div>
+                <span class="vote-list-date">{{ formatVoteDate(item.createdAt) }}</span>
+              </router-link>
+            </div>
+          </section>
+        </template>
+
+        <!-- 개인정보동의 페이지 -->
+        <template v-else-if="activeMySubSection === MY_SUB_SECTION.PRIVACY">
+          <section class="section section--bottom-space" aria-labelledby="section-privacy-title">
+            <h2 id="section-privacy-title" class="section-title">개인정보 동의</h2>
+            <div class="section-contents">
+              <p class="account-value">
+                서비스 이용을 위해 동의한 개인정보 처리 및 수집 항목을 확인할 수 있는 페이지입니다.
+              </p>
+              <p class="account-value">
+                추후 실제 약관 내용과 동의 내역을 조회·변경할 수 있도록 확장할 수 있어요.
+              </p>
+            </div>
+          </section>
+        </template>
+
+        <!-- 회원탈퇴 페이지 -->
+        <template v-else-if="activeMySubSection === MY_SUB_SECTION.WITHDRAW">
+          <section class="section section--bottom-space" aria-labelledby="section-withdraw-title">
+            <h2 id="section-withdraw-title" class="section-title">회원 탈퇴</h2>
+            <div class="section-contents">
+              <p class="account-value">
+                회원 탈퇴 전, 계정 정보와 이용 내역이 삭제된 후에는 복구가 어려울 수 있어요.
+              </p>
+              <p class="account-value">
+                실제 탈퇴 처리 로직(비밀번호 재확인, 동의 체크 등)은 추후에 서버 API와 연동해서 구현하면 됩니다.
+              </p>
+              <button type="button" class="btn-outlined" disabled>회원 탈퇴 진행 (준비 중)</button>
+            </div>
+          </section>
+        </template>
+      </template>
+
+      <!-- 지난 결과 내역 전용 섹션 -->
+      <template v-else>
+        <section class="section section--bottom-space" aria-labelledby="section-history-title">
+          <div class="section-head section-head--history">
+            <h2 id="section-history-title" class="section-title">지난 결과 내역</h2>
+            <div class="history-filters" role="tablist" aria-label="결과 유형 필터">
+              <button
+                type="button"
+                class="history-filter-chip"
+                :class="{ 'history-filter-chip--active': historyFilter === 'all' }"
+                role="tab"
+                :aria-selected="historyFilter === 'all'"
+                @click="
+                  historyFilter = 'all';
+                  router.replace({
+                    path: '/my',
+                    query: {
+                      section: 'history',
+                      filter: 'all'
+                    }
+                  })
+                "
+              >
+                전체
+              </button>
+              <button
+                type="button"
+                class="history-filter-chip"
+                :class="{ 'history-filter-chip--active': historyFilter === 'vote' }"
+                role="tab"
+                :aria-selected="historyFilter === 'vote'"
+                @click="
+                  historyFilter = 'vote';
+                  router.replace({
+                    path: '/my',
+                    query: {
+                      section: 'history',
+                      filter: 'vote'
+                    }
+                  })
+                "
+              >
+                투표만
+              </button>
+              <button
+                type="button"
+                class="history-filter-chip"
+                :class="{ 'history-filter-chip--active': historyFilter === 'roulette' }"
+                role="tab"
+                :aria-selected="historyFilter === 'roulette'"
+                @click="
+                  historyFilter = 'roulette';
+                  router.replace({
+                    path: '/my',
+                    query: {
+                      section: 'history',
+                      filter: 'roulette'
+                    }
+                  })
+                "
+              >
+                룰렛만
               </button>
             </div>
           </div>
-          <div class="account">
-            <div class="account-row">
-              <span class="account-label">이메일</span>
-              <span class="account-value">{{ memberEmail || (emailLoadError || '로딩 중...') }}</span>
-            </div>
-            <div class="account-row">
-              <span class="account-label">비밀번호</span>
-              <span class="account-value">********</span>
-              <button type="button" class="btn-outlined">비밀번호 변경</button>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      <section class="section" aria-labelledby="section-vote-title">
-        <h2 id="section-vote-title" class="section-title">현재 진행중인 투표</h2>
-        <div v-if="ongoingVotes.length === 0" class="section-contents section-contents--empty">
-          <p class="empty-text">진행중인 투표가 없어요</p>
-        </div>
-        <div v-else class="section-contents section-contents--list section-contents--ongoing-votes">
-          <router-link
-            v-for="v in pagedOngoingVotes"
-            :key="v.id"
-            :to="`/vote/${v.id}`"
-            class="vote-list-item"
-          >
-            <div class="vote-list-main">
-              <span class="result-label result-label--vote">투표</span>
-              <span class="vote-list-title">{{ v.title }}</span>
-            </div>
-            <span class="vote-list-date">{{ formatVoteDate(v.createdAt) }}</span>
-          </router-link>
           <div
-            v-for="n in ongoingPlaceholderCount"
-            :key="`ongoing-placeholder-${n}`"
-            class="vote-list-item vote-list-item--placeholder"
+            v-if="filteredHistoryResults.length === 0"
+            class="section-contents section-contents--empty"
           >
-            <span class="vote-list-title">새로운 투표를 만들어보세요</span>
-            <span class="vote-list-date"> </span>
+            <p class="empty-text">진행한 결과가 없어요</p>
           </div>
-        </div>
-        <div v-if="ongoingVotes.length > PAGE_SIZE" class="pagination">
-          <button
-            type="button"
-            class="pagination-arrow"
-            aria-label="이전"
-            :disabled="ongoingPage === 1"
-            @click="goPrevOngoingPage"
+          <div
+            v-else
+            class="section-contents section-contents--list"
           >
-            ‹
-          </button>
-          <button
-            v-for="item in ongoingPageItems"
-            :key="item.key"
-            type="button"
-            class="pagination-page"
-            :class="{
-              'pagination-page--current': item.type === 'number' && item.value === ongoingPage,
-              'pagination-page--ellipsis': item.type === 'ellipsis'
-            }"
-            :disabled="item.type === 'ellipsis'"
-            @click="item.type === 'number' ? setOngoingPage(item.value) : null"
-          >
-            {{ item.label }}
-          </button>
-          <button
-            type="button"
-            class="pagination-arrow"
-            aria-label="다음"
-            :disabled="ongoingPage === totalOngoingPages"
-            @click="goNextOngoingPage"
-          >
-            ›
-          </button>
-        </div>
-      </section>
-
-      <section class="section" aria-labelledby="section-fav-title">
-        <div class="section-head">
-          <h2 id="section-fav-title" class="section-title">최근 즐겨찾기 한 장소</h2>
-          <button type="button" class="btn-ghost">전체보기</button>
-        </div>
-        <div v-if="latestFavorites.length === 0" class="section-contents section-contents--empty">
-          <p class="empty-text">즐겨찾기한 장소가 없어요</p>
-        </div>
-        <div v-else class="section-contents">
-          <ul class="favorites-list">
-            <li
-              v-for="item in latestFavorites"
-              :key="item.id"
-              class="favorite-item"
+            <router-link
+              v-for="item in pagedHistoryResults"
+              :key="`${item.type}-${item.id}-${item.createdAt}`"
+              :to="
+                item.type === 'vote'
+                  ? `/vote/${item.id}`
+                  : { name: 'rouletteShare', query: { data: item.shareData, fromHistory: 'true' } }
+              "
+              class="vote-list-item"
+              :class="{ 'vote-list-item--roulette': item.type === 'roulette' }"
             >
-              <div class="favorite-card">
-                <div class="favorite-thumb-wrap">
-                  <img
-                    :src="getFavoriteImage(item)"
-                    :alt="item.name"
-                    class="favorite-thumb"
-                    @error="(e) => { e.target.src = defaultThumbnail }"
-                  />
-                  <button
-                    type="button"
-                    class="favorite-heart-button"
-                    aria-label="즐겨찾기 해제"
-                    @click.stop="handleToggleFavoriteFromMyPage(item)"
-                  >
-                    <svg
-                      class="favorite-heart-icon"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        class="favorite-heart-path"
-                        d="M12 20.25c-.32 0-.64-.1-.9-.3-.76-.56-1.45-1.09-2.08-1.56-2.53-1.92-4.42-3.36-4.42-5.89C4.6 9.5 6.1 8 7.92 8c1.12 0 2.12.52 2.78 1.39L12 10.9l1.3-1.51C13.96 8.52 14.96 8 16.08 8 17.9 8 19.4 9.5 19.4 12.5c0 2.53-1.89 3.97-4.42 5.89-.63.47-1.32 1-2.08 1.56-.26.2-.58.3-.9.3Z"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <div class="favorite-info">
-                  <div class="favorite-header-row">
-                    <p class="favorite-name">
-                      {{ item.name }}
-                    </p>
-                    <button
-                      type="button"
-                      class="favorite-external-btn"
-                      aria-label="지도에서 보기"
-                      @click="openFavoriteExternal(item)"
-                    >
-                      <img
-                        :src="externalLinkIcon"
-                        alt=""
-                        class="favorite-external-icon"
-                        aria-hidden="true"
-                      />
-                    </button>
-                  </div>
-                  <p class="favorite-category">
-                    {{ getFavoriteCategory(item) }}
-                  </p>
-                </div>
+              <div class="vote-list-main">
+                <span
+                  class="result-label"
+                  :class="item.type === 'vote' ? 'result-label--vote' : 'result-label--roulette'"
+                >
+                  {{ item.type === 'vote' ? '투표' : '룰렛' }}
+                </span>
+                <span class="vote-list-title">
+                  {{ item.type === 'vote' ? item.title : '오늘 점심은 여기로 결정!' }}
+                </span>
               </div>
-            </li>
-          </ul>
-        </div>
-      </section>
+              <span class="vote-list-date">{{ formatVoteDate(item.createdAt) }}</span>
+            </router-link>
+          </div>
 
-      <section class="section section--bottom-space" aria-labelledby="section-result-title">
-        <div class="section-head">
-          <h2 id="section-result-title" class="section-title">최근 진행한 결과</h2>
-          <button type="button" class="btn-ghost">전체보기</button>
-        </div>
-        <div
-          v-if="limitedRecentResults.length === 0"
-          class="section-contents section-contents--empty"
-        >
-          <p class="empty-text">진행한 결과가 없어요</p>
-        </div>
-        <div v-else class="section-contents section-contents--list">
-          <router-link
-            v-for="item in limitedRecentResults"
-            :key="`${item.type}-${item.id}-${item.createdAt}`"
-            :to="
-              item.type === 'vote'
-                ? `/vote/${item.id}`
-                : { name: 'rouletteShare', query: { data: item.shareData, fromHistory: 'true' } }
-            "
-            class="vote-list-item"
+          <div
+            v-if="filteredHistoryResults.length > 0"
+            class="pagination"
           >
-            <div class="vote-list-main">
-              <span
-                class="result-label"
-                :class="item.type === 'vote' ? 'result-label--vote' : 'result-label--roulette'"
-              >
-                {{ item.type === 'vote' ? '투표' : '룰렛' }}
-              </span>
-              <span class="vote-list-title">
-                {{ item.type === 'vote' ? item.title : '오늘 점심은 여기로 결정!' }}
-              </span>
-            </div>
-            <span class="vote-list-date">{{ formatVoteDate(item.createdAt) }}</span>
-          </router-link>
-        </div>
-      </section>
+            <button
+              type="button"
+              class="pagination-arrow"
+              aria-label="이전"
+              :disabled="historyPage === 1"
+              @click="goPrevHistoryPage"
+            >
+              ‹
+            </button>
+            <button
+              v-for="page in totalHistoryPages"
+              :key="`history-page-${page}`"
+              type="button"
+              class="pagination-page"
+              :class="{ 'pagination-page--current': page === historyPage }"
+              @click="setHistoryPage(page)"
+            >
+              {{ page }}
+            </button>
+            <button
+              type="button"
+              class="pagination-arrow"
+              aria-label="다음"
+              :disabled="historyPage === totalHistoryPages"
+              @click="goNextHistoryPage"
+            >
+              ›
+            </button>
+          </div>
+        </section>
+      </template>
     </main>
 
     <ProfileChangeModal
@@ -698,21 +1158,25 @@ const currentProfileIndex = computed(() => {
   width: 100%;
   min-height: 100%;
   flex: 1;
-  background-color: #ffffff;
+  background: linear-gradient(135deg, #f8f9fa 0%, #f1f3f4 100%);
 }
 
 .side-menu {
   flex-shrink: 0;
-  width: 309px;
-  padding: 100px 40px;
+  width: 320px;
+  padding: 80px 24px;
   box-sizing: border-box;
+  background-color: #ffffff;
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.03);
 }
 
 .side-menu-contents {
   display: flex;
   flex-direction: column;
   gap: 40px;
-  width: 223px;
+  width: 100%;
+  max-width: 260px;
 }
 
 .profile {
@@ -726,6 +1190,8 @@ const currentProfileIndex = computed(() => {
   width: 80px;
   height: 80px;
   border-radius: 4px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px #ffe0d8;
   overflow: hidden;
   background-color: #e8eaed;
 }
@@ -748,7 +1214,7 @@ const currentProfileIndex = computed(() => {
 } 
 
 .divider {
-  width: 223px;
+  width: 100%;
   height: 1px;
   background-color: #e8eaed;
   flex-shrink: 0;
@@ -759,9 +1225,42 @@ const currentProfileIndex = computed(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  width: 223px;
+  width: 100%;
   box-sizing: border-box;
   border-radius: 999px;
+  transition:
+    background-color 0.18s ease-out,
+    box-shadow 0.18s ease-out,
+    transform 0.16s ease-out;
+}
+
+.menu-1depth--clickable {
+  cursor: pointer;
+}
+
+.menu-1depth--clickable:hover {
+  background-color: #fff0ea;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
+}
+
+.menu-1depth--history {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.menu-1depth--history:focus-visible {
+  outline: 2px solid #ff5531;
+  outline-offset: 2px;
+}
+
+.menu-1depth--selected {
+  background-color: #fff0ea;
+}
+
+.menu-1depth--selected .menu-1depth-title {
+  color: #ff5531;
 }
 
 .menu-1depth-title {
@@ -777,6 +1276,11 @@ const currentProfileIndex = computed(() => {
   flex-shrink: 0;
   font-size: 14px;
   color: #5f6368;
+  transition: transform 0.2s ease-out;
+}
+
+.menu-arrow--collapsed {
+  transform: rotate(-90deg);
 }
 
 .sub-menu {
@@ -796,10 +1300,20 @@ const currentProfileIndex = computed(() => {
   font-size: 24px;
   line-height: 1.35;
   color: #5f6368;
+  transition:
+    background-color 0.18s ease-out,
+    color 0.18s ease-out,
+    transform 0.14s ease-out;
+}
+
+.sub-menu-item:hover:not(.sub-menu-item--selected) {
+  background-color: #fff0ea;
+  color: #3c4043;
+  transform: translateX(2px);
 }
 
 .sub-menu-item--selected {
-  background-color: #ffe0d8;
+  background-color: #fff0ea;
   font-weight: 700;
   color: #ff5531;
 }
@@ -810,8 +1324,12 @@ const currentProfileIndex = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 60px;
-  padding: 80px 32px 96px 32px;
+  padding: 64px 48px 40px 48px;
   box-sizing: border-box;
+  background-color: #ffffff;
+  border-radius: 24px;
+  margin: 32px 32px 24px 24px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .section {
@@ -832,6 +1350,11 @@ const currentProfileIndex = computed(() => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
+}
+
+.section-head--history {
+  align-items: flex-end;
+  gap: 16px;
 }
 
 .section-title {
@@ -867,6 +1390,8 @@ const currentProfileIndex = computed(() => {
 .thumbnail--large {
   width: 160px;
   height: 160px;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 3px #ffe0d8;
 }
 
 .thumbnail-img {
@@ -1002,6 +1527,38 @@ const currentProfileIndex = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.history-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.history-filter-chip {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #dadce0;
+  background-color: #ffffff;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: #5f6368;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+
+.history-filter-chip--active {
+  border-color: #ff5531;
+  background-color: #fff0ea;
+  color: #ff5531;
+}
+
+.history-filter-chip:focus-visible {
+  outline: 2px solid #ff5531;
+  outline-offset: 2px;
 }
 
 .favorites-list {
@@ -1196,6 +1753,19 @@ const currentProfileIndex = computed(() => {
   min-width: 0;
 }
 
+.vote-list-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.vote-list-timer-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .result-label {
   display: inline-flex;
   align-items: center;
@@ -1240,6 +1810,20 @@ const currentProfileIndex = computed(() => {
   font-size: 14px;
   color: #5f6368;
   flex-shrink: 0;
+}
+
+.vote-list-timer {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  color: #ff5531;
+}
+
+.vote-list-timer-label {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  color: #5f6368;
 }
 
 .empty-text {
@@ -1328,10 +1912,13 @@ const currentProfileIndex = computed(() => {
     width: 100%;
     padding: 24px 20px;
     border-bottom: 1px solid #e8eaed;
+    border-right: none;
+    box-shadow: none;
   }
 
   .side-menu-contents {
     width: 100%;
+    max-width: none;
     flex-direction: row;
     flex-wrap: wrap;
     gap: 20px;
@@ -1352,6 +1939,9 @@ const currentProfileIndex = computed(() => {
 
   .mypage-main {
     padding: 32px 20px 96px;
+    margin: 24px 16px 32px;
+    border-radius: 20px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   }
 }
 </style>

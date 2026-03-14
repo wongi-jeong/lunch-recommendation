@@ -22,25 +22,23 @@ const showHeader = computed(() => {
 </template>
 
 <style>
-/* 뷰포트 고정, 스크롤바 방지 */
-html, body {
-  height: 100%;
-  overflow: hidden;
+/* 전역 레이아웃: 브라우저 기본 스크롤 사용 */
+html,
+body {
+  min-height: 100%;
   margin: 0;
 }
 #app {
-  height: 100%;
+  min-height: 100vh;
 }
 </style>
 
 <style scoped>
 .app {
   width: 100%;
-  height: 100%;
-  min-height: 0;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .app-header {
@@ -49,8 +47,6 @@ html, body {
 
 .app-main {
   flex: 1;
-  min-height: 0;
-  overflow: auto;
   display: flex;
   flex-direction: column;
 }

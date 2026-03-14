@@ -38,7 +38,8 @@ public class RestaurantController {
 			@RequestParam("lng") double longitude, @RequestParam(name = "radius", defaultValue = "1000") int radius,
 			@RequestParam(name = "categories", required = false) List<String> filterCategories,
 			@RequestParam(name = "excludePlaceIds", required = false) List<String> excludePlaceIds,
-			@RequestParam(name = "maxResults", defaultValue = "5") int maxResults) {
+			@RequestParam(name = "maxResults", defaultValue = "5") int maxResults,
+			@RequestParam(name = "openOnly", defaultValue = "false") boolean openOnly) {
 		if (filterCategories == null || filterCategories.isEmpty()) {
 			return ResponseEntity.ok(List.of());
 		}
@@ -69,6 +70,13 @@ public class RestaurantController {
 		restaurants = restaurants.stream()
 				.filter(r -> r.getDistanceMeters() != null && r.getDistanceMeters() <= radiusFilter)
 				.collect(Collectors.toList());
+
+		// 5-1. 영업중인 가게만 보기: openNow == true 인 경우만 유지
+		if (openOnly) {
+			restaurants = restaurants.stream()
+					.filter(r -> Boolean.TRUE.equals(r.getOpenNow()))
+					.collect(Collectors.toList());
+		}
 
 		// 6. 최대 개수로 제한 (초과 시 랜덤 선정)
 		if (restaurants.size() > maxResults) {
