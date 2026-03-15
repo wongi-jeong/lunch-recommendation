@@ -1,6 +1,6 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useFavorites } from '@/composables/useFavorites'
 import GoogleMap from '../GoogleMap.vue'
@@ -10,6 +10,7 @@ import LunchRoulettePopup from './LunchRoulettePopup.vue'
 import LoginRequiredModal from '../LoginRequiredModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const { isLoggedIn } = useAuth()
 const { favorites, addFavorite, removeFavorite, syncFromServer } = useFavorites()
 
@@ -37,7 +38,9 @@ const markers = computed(() => {
   const filtered = []
   list.forEach((restaurant, i) => {
     if (restaurant.latitude && restaurant.longitude) {
+      const id = restaurant.googlePlaceId || restaurant.placeId || restaurant.id || null
       filtered.push({
+        id,
         lat: restaurant.latitude,
         lng: restaurant.longitude,
         color: filtered.length === 0 ? '#34A853' : '#FF5531',
@@ -78,6 +81,21 @@ const isLoading = ref(false)
 
 const bottomSeatRef = ref(null)
 
+function applyFilterFromQuery() {
+  const q = route.query
+  const distance = q.distance ? parseInt(q.distance, 10) : null
+  const foodTypesStr = q.foodTypes
+  const openOnly = q.openOnly === '1' || q.openOnly === 'true'
+  if (distance !== null && !Number.isNaN(distance) && [300, 800, 1200].includes(distance)) {
+    filters.value.distance = distance
+  }
+  if (typeof foodTypesStr === 'string' && foodTypesStr.length > 0) {
+    const list = foodTypesStr.split(',').map((s) => s.trim()).filter(Boolean)
+    if (list.length > 0) filters.value.foodTypes = list
+  }
+  if (q.openOnly !== undefined) filters.value.openOnly = openOnly
+}
+
 onMounted(() => {
   apiKey.value = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.GOOGLE_MAPS_API_KEY || ''
   
@@ -85,11 +103,18 @@ onMounted(() => {
     console.warn('Google Maps API 키가 설정되지 않았습니다.')
     console.warn('환경변수 GOOGLE_MAPS_API_KEY 또는 .env 파일의 VITE_GOOGLE_MAPS_API_KEY를 설정해주세요.')
   }
-  // 로그인 사용자: DB 즐겨찾기를 불러와 바텀시트 하트 상태에 반영
+  applyFilterFromQuery()
+  // 로그인 사용자: DB API로 즐겨찾기 불러와 지도/바텀시트 하트 상태 반영
   if (isLoggedIn.value) {
-    syncFromServer()
+    syncFromServer() // 완료 시 favoriteIds 갱신 → GoogleMap watch에서 모든 InfoWindow 하트 반영
   }
 })
+
+watch(
+  () => route.query,
+  () => { applyFilterFromQuery() },
+  { deep: true }
+)
 
 // 검색된 식당 목록
 const restaurants = ref([])
@@ -409,11 +434,28 @@ const handleRefresh = async (index) => {
   }
 }
 
+// 선택된 카드 인덱스 (눌린 카드 / 인포윈도우가 열린 마커)
+const selectedCardIndex = ref(-1)
+
 // 카드 클릭 시 해당 가게 위치로 지도 줌 + 인포윈도우 표시
 const handleCardSelect = (restaurant) => {
+  const idx = displayRestaurants.value.findIndex(
+    (r) => (r.googlePlaceId || r.placeId || r.id) === (restaurant.googlePlaceId || restaurant.placeId || restaurant.id)
+      || (r.latitude === restaurant.latitude && r.longitude === restaurant.longitude)
+  )
+  selectedCardIndex.value = idx >= 0 ? idx : -1
   if (googleMapRef.value?.focusOnRestaurant && restaurant?.latitude && restaurant?.longitude) {
     googleMapRef.value.focusOnRestaurant(restaurant)
   }
+}
+
+// 마커 클릭 시 바텀시트 선택 동기화
+const handleMarkerSelect = (markerData) => {
+  const idx = markerData.restaurantIndex ?? displayRestaurants.value.findIndex(
+    (r) => (r.googlePlaceId || r.placeId || r.id) === (markerData.id || markerData.googlePlaceId || markerData.placeId)
+      || (Math.abs((r.latitude ?? 0) - (markerData.lat ?? 0)) < 1e-6 && Math.abs((r.longitude ?? 0) - (markerData.lng ?? 0)) < 1e-6)
+  )
+  selectedCardIndex.value = idx >= 0 ? idx : -1
 }
 
 const handleVoteCreate = () => {
@@ -540,8 +582,10 @@ const handleShare = (payload) => {
         :zoom="16"
         :markers="markers"
         :routes="routes"
+        :favorite-ids="favoriteIds"
         @toggle-favorite="toggleFavoriteRestaurant"
         @refresh="handleRefresh"
+        @marker-select="handleMarkerSelect"
       />
       <div v-else class="map-error">
         <p>Google Maps API 키가 설정되지 않았습니다.</p>
@@ -553,6 +597,7 @@ const handleShare = (payload) => {
         :restaurants="displayRestaurants"
         :active-categories="(filters.foodTypes || []).map(id => FOOD_TYPE_TO_CATEGORY[id]).filter(Boolean)"
         :favorite-ids="favoriteIds"
+        :selected-index="selectedCardIndex"
         @recommend="handleRecommend"
         @select="handleCardSelect"
         @roulette="rouletteOpen = true"

@@ -16,6 +16,12 @@ import profileAvatar8 from '@/assets/avatar-8.png'
 import defaultThumbnail from '@/assets/img-placeholder-restaurant.png'
 import externalLinkIcon from '@/assets/icon-external-link.svg'
 import ProfileChangeModal from '@/components/ProfileChangeModal.vue'
+/* Figma 47:3141 저장한 필터 에셋 */
+import iconArrowPagination from '@/assets/icon-arrow-pagination.svg'
+import iconStarFilled from '@/assets/icon-star-filled.svg'
+import iconEdit from '@/assets/icon-edit.svg'
+import iconCheckboxOutline from '@/assets/icon-checkbox-outline.svg'
+import iconCheckboxChecked from '@/assets/icon-checkbox-checked.svg'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,6 +46,22 @@ const rouletteHistory = ref([])
 
 // 즐겨찾기 (최근 즐겨찾기 한 장소) - 회원 DB 기반
 const memberFavorites = ref([])
+
+// 저장한 필터 (내 저장 섹션)
+const savedFilters = ref([])
+const FOOD_TYPE_LABELS = {
+  korean: '한식',
+  chinese: '중식',
+  japanese: '일식',
+  western: '양식',
+  vegan: '비건',
+  asian: '아시안',
+  fastfood: '패스트푸드',
+  meat: '고기',
+  noodle: '면/국물',
+  cafe: '카페'
+}
+const DISTANCE_LABELS = { 300: '300m', 800: '800m', 1200: '1.2km' }
 
 // 실시간 남은 시간 계산용
 const now = ref(Date.now())
@@ -184,6 +206,151 @@ const isMyMenuOpen = ref(true)
 const placeSortOrder = ref('desc')
 const placePage = ref(1)
 const PLACE_PAGE_SIZE = 12
+
+// 저장한 필터 페이지네이션 (Figma 47:3141)
+const filterPage = ref(1)
+const FILTER_PAGE_SIZE = 6
+const totalSavedFilterPages = computed(() =>
+  Math.max(1, Math.ceil(savedFilters.value.length / FILTER_PAGE_SIZE))
+)
+const pagedSavedFilters = computed(() => {
+  const start = (filterPage.value - 1) * FILTER_PAGE_SIZE
+  return savedFilters.value.slice(start, start + FILTER_PAGE_SIZE)
+})
+function setSavedFilterPage(n) {
+  const total = totalSavedFilterPages.value
+  filterPage.value = Math.max(1, Math.min(n, total))
+}
+
+// 삭제 확인 팝업 (별 옆에 표시)
+const confirmDeleteFilterId = ref(null)
+
+// 저장한 필터 수정 모달 (Figma 47:3112) / 추가 모달
+const editingFilter = ref(null)
+const showAddFilterModal = ref(false)
+const editForm = ref({
+  name: '',
+  distance: 300,
+  foodTypes: [],
+  openOnly: false
+})
+const DISTANCE_OPTIONS = [300, 800, 1200]
+const FOOD_TYPE_ENTRIES = Object.entries(FOOD_TYPE_LABELS)
+const editFormSubmitting = ref(false)
+
+function openAddFilterModal() {
+  closeDeleteConfirm()
+  showAddFilterModal.value = true
+  editingFilter.value = null
+  editForm.value = {
+    name: '',
+    distance: 300,
+    foodTypes: ['korean'],
+    openOnly: false
+  }
+}
+
+function openEditModal(sf) {
+  closeDeleteConfirm()
+  showAddFilterModal.value = false
+  editingFilter.value = sf
+  editForm.value = {
+    name: sf.name || '',
+    distance: sf.distance ?? 300,
+    foodTypes: Array.isArray(sf.foodTypes) ? [...sf.foodTypes] : [],
+    openOnly: !!sf.openOnly
+  }
+}
+
+function closeEditModal() {
+  editingFilter.value = null
+  showAddFilterModal.value = false
+}
+
+function toggleEditFoodType(ftId) {
+  const arr = editForm.value.foodTypes
+  const idx = arr.indexOf(ftId)
+  if (idx === -1) arr.push(ftId)
+  else arr.splice(idx, 1)
+}
+
+function isEditFoodTypeSelected(ftId) {
+  return editForm.value.foodTypes.includes(ftId)
+}
+
+function isAllEditFoodTypesSelected() {
+  const selected = editForm.value.foodTypes
+  const allIds = FOOD_TYPE_ENTRIES.map(([id]) => id)
+  return allIds.length > 0 && allIds.every((id) => selected.includes(id))
+}
+
+function toggleAllEditFoodTypes() {
+  if (isAllEditFoodTypesSelected()) {
+    editForm.value.foodTypes = []
+  } else {
+    editForm.value.foodTypes = FOOD_TYPE_ENTRIES.map(([id]) => id)
+  }
+}
+
+function selectAllEditFoodTypes() {
+  editForm.value.foodTypes = FOOD_TYPE_ENTRIES.map(([id]) => id)
+}
+
+async function saveEditFilter() {
+  if (editFormSubmitting.value) return
+  const name = (editForm.value.name || '').trim() || '새 필터'
+  const isEdit = !!editingFilter.value
+  const id = editingFilter.value?.id
+  if (isEdit && !id) return
+  editFormSubmitting.value = true
+  try {
+    const token = getToken()
+    if (!token) return
+    if (isEdit) {
+      const res = await fetch(`/api/saved-filters/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth-Token': token
+        },
+        body: JSON.stringify({
+          name,
+          distance: editForm.value.distance,
+          foodTypes: editForm.value.foodTypes,
+          openOnly: editForm.value.openOnly
+        })
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || '수정에 실패했어요.')
+        return
+      }
+    } else {
+      const res = await fetch('/api/saved-filters', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth-Token': token
+        },
+        body: JSON.stringify({
+          name: name.substring(0, 12),
+          distance: editForm.value.distance,
+          foodTypes: editForm.value.foodTypes,
+          openOnly: editForm.value.openOnly
+        })
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || '저장에 실패했어요.')
+        return
+      }
+    }
+    fetchSavedFilters()
+    closeEditModal()
+  } finally {
+    editFormSubmitting.value = false
+  }
+}
 
 const sortedSavedPlaces = computed(() => {
   const list = [...(memberFavorites.value || [])]
@@ -433,6 +600,67 @@ async function fetchMemberFavorites() {
   }
 }
 
+async function fetchSavedFilters() {
+  const token = getToken()
+  if (!token) {
+    savedFilters.value = []
+    return
+  }
+  try {
+    const res = await fetch('/api/saved-filters/me', {
+      headers: { 'X-Auth-Token': token },
+      cache: 'no-store'
+    })
+    if (!res.ok) {
+      savedFilters.value = []
+      return
+    }
+    const data = await res.json()
+    savedFilters.value = Array.isArray(data) ? data : []
+  } catch {
+    savedFilters.value = []
+  }
+}
+
+function openDeleteConfirm(id) {
+  if (confirmDeleteFilterId.value === id) {
+    closeDeleteConfirm()
+  } else {
+    confirmDeleteFilterId.value = id
+  }
+}
+
+function closeDeleteConfirm() {
+  confirmDeleteFilterId.value = null
+}
+
+function doDeleteSavedFilter(id) {
+  deleteSavedFilter(id)
+  closeDeleteConfirm()
+}
+
+async function deleteSavedFilter(id) {
+  const token = getToken()
+  if (!token || !id) return
+  try {
+    const res = await fetch(`/api/saved-filters/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-Auth-Token': token }
+    })
+    if (res.ok) fetchSavedFilters()
+  } catch {
+    // ignore
+  }
+}
+
+function getSavedFilterDistanceLabel(distance) {
+  return DISTANCE_LABELS[distance] || `${distance}m`
+}
+
+function getSavedFilterFoodTypeLabel(id) {
+  return FOOD_TYPE_LABELS[id] || id
+}
+
 function getOngoingTimerDisplay(vote) {
   if (!vote || !vote.timer || vote.timer === 'none' || !vote.createdAt) return null
 
@@ -622,6 +850,15 @@ async function submitWithdraw() {
 }
 
 watch(
+  totalSavedFilterPages,
+  (total) => {
+    if (filterPage.value > total) {
+      filterPage.value = Math.max(1, total)
+    }
+  }
+)
+
+watch(
   () => route.fullPath,
   (fullPath) => {
     if (route.path === '/my') {
@@ -631,6 +868,7 @@ watch(
       fetchEndedVotes()
       loadRouletteHistory()
       fetchMemberFavorites()
+      fetchSavedFilters()
       syncSectionFromRoute()
     }
   },
@@ -644,6 +882,7 @@ const handlePageshow = () => {
     fetchEndedVotes()
     loadRouletteHistory()
     fetchMemberFavorites()
+    fetchSavedFilters()
   }
 }
 
@@ -1176,15 +1415,142 @@ const currentProfileIndex = computed(() => {
         </template>
       </template>
 
-      <!-- 내 저장 섹션 (저장한 필터 + 저장한 장소) -->
+      <!-- 내 저장 섹션 (저장한 필터 + 저장한 장소) - Figma 47:3141 -->
       <template v-else-if="activeMainSection === MAIN_SECTION.SAVED">
-        <section class="saved-section" aria-labelledby="section-filter-title">
-          <div class="saved-section-head">
-            <h2 id="section-filter-title" class="saved-section-title">저장한 필터</h2>
-            <button type="button" class="saved-section-btn">추가하기</button>
+        <section class="saved-section favorite-list" aria-labelledby="section-filter-title" data-name="favoriteList" data-node-id="47:3141">
+          <div class="saved-section-head list-title" data-name="listTitle" data-node-id="I47:3141;47:3950">
+            <h2 id="section-filter-title" class="saved-section-title list-title__heading" data-node-id="I47:3141;47:3950;47:3624">저장한 필터</h2>
+            <button
+              type="button"
+              class="saved-section-btn list-title__button"
+              data-name="button"
+              data-node-id="I47:3141;47:3950;47:3625"
+              @click="openAddFilterModal"
+            >
+              <span class="list-title__button-inner" data-node-id="I47:3141;47:3950;47:3626">추가하기</span>
+            </button>
           </div>
-          <div class="saved-section-contents saved-section-contents--empty">
+          <div v-if="savedFilters.length === 0" class="saved-section-contents saved-section-contents--empty">
             <p class="saved-section-empty-text">저장한 필터가 없어요</p>
+          </div>
+          <div v-else class="saved-filter-section-body">
+            <div class="saved-filter-list-contents list-contents--filters" data-name="listContents">
+              <div
+                v-for="sf in pagedSavedFilters"
+                :key="sf.id"
+                class="saved-filter-card-figma"
+              data-name="filterCard"
+              data-node-id="47:3920"
+            >
+              <div class="saved-filter-card-figma__inner">
+                <div class="saved-filter-card-figma__header">
+                  <p class="saved-filter-card-figma__name">{{ sf.name }}</p>
+                  <div class="saved-filter-card-figma__actions">
+                    <div class="saved-filter-card-figma__star-wrap">
+                      <button
+                        type="button"
+                        class="saved-filter-card-figma__star-btn"
+                        aria-label="저장 해제(삭제)"
+                        aria-expanded="confirmDeleteFilterId === sf.id"
+                        @click="openDeleteConfirm(sf.id)"
+                      >
+                        <img :src="iconStarFilled" alt="" class="saved-filter-card-figma__star" aria-hidden="true" />
+                      </button>
+                      <div
+                        v-if="confirmDeleteFilterId === sf.id"
+                        class="saved-filter-card-figma__confirm-popup"
+                        role="dialog"
+                        aria-label="삭제 확인"
+                      >
+                        <p class="saved-filter-card-figma__confirm-text">이 필터를 삭제하시겠습니까?</p>
+                        <div class="saved-filter-card-figma__confirm-btns">
+                          <button type="button" class="saved-filter-card-figma__confirm-cancel" @click="closeDeleteConfirm">취소</button>
+                          <button type="button" class="saved-filter-card-figma__confirm-delete" @click="doDeleteSavedFilter(sf.id)">삭제</button>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="saved-filter-card-figma__edit"
+                      aria-label="필터 수정"
+                      @click="openEditModal(sf)"
+                    >
+                      <img :src="iconEdit" alt="" class="saved-filter-card-figma__edit-icon" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+                <div class="saved-filter-card-figma__distance">
+                  <p class="saved-filter-card-figma__label">거리</p>
+                  <div class="saved-filter-card-figma__chips">
+                    <span
+                      v-for="d in DISTANCE_OPTIONS"
+                      :key="d"
+                      class="saved-filter-chip-figma saved-filter-chip-figma--outlined"
+                      :class="{ 'saved-filter-chip-figma--selected': sf.distance === d }"
+                    >
+                      {{ getSavedFilterDistanceLabel(d) }}
+                    </span>
+                  </div>
+                </div>
+                <div class="saved-filter-card-figma__food">
+                  <p class="saved-filter-card-figma__label">음식 종류</p>
+                  <div class="saved-filter-card-figma__chips">
+                    <span
+                      v-for="[ftId, label] in FOOD_TYPE_ENTRIES"
+                      :key="ftId"
+                      class="saved-filter-chip-figma saved-filter-chip-figma--outlined"
+                      :class="{ 'saved-filter-chip-figma--selected': (sf.foodTypes || []).includes(ftId) }"
+                    >
+                      {{ label }}
+                    </span>
+                  </div>
+                </div>
+                <div v-if="sf.openOnly" class="saved-filter-card-figma__open-only">
+                  <img :src="iconCheckboxChecked" alt="" class="saved-filter-card-figma__checkbox-icon" aria-hidden="true" />
+                  <p class="saved-filter-card-figma__checkbox-text">영업중인 가게만 보기</p>
+                </div>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div v-if="savedFilters.length > 0" class="saved-filter-pagination-outer">
+            <div
+              v-if="totalSavedFilterPages > 1"
+              class="saved-section-pagination"
+              data-name="pagenation"
+              data-node-id="I47:3141;47:3952"
+            >
+              <button
+                type="button"
+                class="saved-pagination-arrow"
+                aria-label="이전 페이지"
+                :disabled="filterPage <= 1"
+                @click="setSavedFilterPage(filterPage - 1)"
+              >
+                ‹
+              </button>
+              <div class="saved-pagination-numbers">
+                <button
+                  v-for="n in totalSavedFilterPages"
+                  :key="n"
+                  type="button"
+                  class="saved-pagination-num"
+                  :class="{ 'saved-pagination-num--current': n === filterPage }"
+                  @click="setSavedFilterPage(n)"
+                >
+                  {{ n }}
+                </button>
+              </div>
+              <button
+                type="button"
+                class="saved-pagination-arrow"
+                aria-label="다음 페이지"
+                :disabled="filterPage >= totalSavedFilterPages"
+                @click="setSavedFilterPage(filterPage + 1)"
+              >
+                ›
+              </button>
+            </div>
           </div>
         </section>
         <section class="saved-section" aria-labelledby="section-places-title">
@@ -1452,6 +1818,104 @@ const currentProfileIndex = computed(() => {
       </template>
     </main>
 
+    <!-- 저장한 필터 수정/추가 모달 (Figma 47:3112) -->
+    <Teleport to="body">
+      <div
+        v-if="editingFilter || showAddFilterModal"
+        class="edit-filter-modal-backdrop"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="editingFilter ? '필터 수정' : '필터 추가'"
+        @click.self="closeEditModal"
+      >
+        <div class="edit-filter-modal" data-node-id="47:3112">
+          <div class="edit-filter-modal__contents">
+            <div class="edit-filter-modal__title-row">
+              <input
+                v-model="editForm.name"
+                type="text"
+                class="edit-filter-modal__input"
+                placeholder="새 필터"
+                maxlength="12"
+                aria-label="필터 이름"
+              />
+              <img :src="iconStarFilled" alt="" class="edit-filter-modal__star" aria-hidden="true" />
+            </div>
+            <div class="edit-filter-modal__section">
+              <p class="edit-filter-modal__label">거리</p>
+              <div class="edit-filter-modal__chips">
+                <button
+                  v-for="d in DISTANCE_OPTIONS"
+                  :key="d"
+                  type="button"
+                  class="edit-filter-modal__chip"
+                  :class="{ 'edit-filter-modal__chip--selected': editForm.distance === d }"
+                  @click="editForm.distance = d"
+                >
+                  {{ getSavedFilterDistanceLabel(d) }}
+                </button>
+              </div>
+            </div>
+            <div class="edit-filter-modal__section">
+              <div class="edit-filter-modal__label-row">
+                <p class="edit-filter-modal__label">음식 종류</p>
+                <button type="button" class="edit-filter-modal__select-all" @click="toggleAllEditFoodTypes">
+                  <img
+                    :src="isAllEditFoodTypesSelected() ? iconCheckboxChecked : iconCheckboxOutline"
+                    alt=""
+                    class="edit-filter-modal__select-all-icon"
+                    aria-hidden="true"
+                  />
+                  <span class="edit-filter-modal__select-all-text">전체 선택</span>
+                </button>
+              </div>
+              <div class="edit-filter-modal__chips edit-filter-modal__chips--wrap">
+                <button
+                  v-for="[ftId, label] in FOOD_TYPE_ENTRIES"
+                  :key="ftId"
+                  type="button"
+                  class="edit-filter-modal__chip"
+                  :class="{ 'edit-filter-modal__chip--selected': isEditFoodTypeSelected(ftId) }"
+                  @click="toggleEditFoodType(ftId)"
+                >
+                  {{ label }}
+                </button>
+              </div>
+            </div>
+            <div class="edit-filter-modal__checkbox-row">
+              <button
+                type="button"
+                class="edit-filter-modal__checkbox"
+                aria-pressed="editForm.openOnly"
+                @click="editForm.openOnly = !editForm.openOnly"
+              >
+                <img
+                  :src="editForm.openOnly ? iconCheckboxChecked : iconCheckboxOutline"
+                  alt=""
+                  class="edit-filter-modal__checkbox-icon"
+                  aria-hidden="true"
+                />
+              </button>
+              <span class="edit-filter-modal__checkbox-text">영업중인 가게만 보기</span>
+            </div>
+            <div class="edit-filter-modal__buttons">
+              <button
+                type="button"
+                class="edit-filter-modal__btn edit-filter-modal__btn--primary"
+                :disabled="editFormSubmitting"
+                @click="saveEditFilter"
+              >
+                저장하기
+              </button>
+              <button type="button" class="edit-filter-modal__btn edit-filter-modal__btn--secondary" @click="closeEditModal">
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <ProfileChangeModal
       :show="showProfileChangeModal"
       :profile-options="profileOptions"
@@ -1705,6 +2169,540 @@ const currentProfileIndex = computed(() => {
   font-size: 24px;
   line-height: normal;
   color: #dadce0;
+  margin: 0;
+}
+
+/* 저장한 필터 목록 (Figma 47:3141) */
+.favorite-list.saved-section {
+  gap: 24px;
+}
+
+.list-title__heading {
+  font-size: var(--font-size-xxlarge, 28px);
+  color: #31373c;
+}
+
+.list-title__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.35;
+  color: #3c4043;
+  background: #ffffff;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.list-title__button:hover {
+  background-color: #f1f3f4;
+}
+
+/* 저장한 필터: 고정 높이 → 잘림 없음 + 페이지네이션 위치 고정 */
+.saved-filter-section-body {
+  width: 100%;
+  height: 960px;
+  box-sizing: border-box;
+}
+
+.saved-filter-list-contents.list-contents--filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 18px 24px;
+  width: 100%;
+  height: 960px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 저장한 필터: 페이지네이션만 section-body 밖 별도 div, 여백 (저장한 장소와 동일 클래스 사용) */
+.saved-filter-pagination-outer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 32px;
+  min-height: 52px;
+  box-sizing: border-box;
+}
+
+.saved-filter-card-figma {
+  width: 402px;
+  min-width: 0;
+  background: #ffffff;
+  border: 1px solid #dadce0;
+  border-radius: 24px;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.saved-filter-card-figma__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 28px;
+  width: 100%;
+}
+
+.saved-filter-card-figma__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+.saved-filter-card-figma__name {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.35;
+  color: #3c4043;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-filter-card-figma__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.saved-filter-card-figma__star-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.saved-filter-card-figma__confirm-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+  width: max-content;
+  max-width: 280px;
+}
+
+/* 삭제 확인 팝업: 문구 위, 버튼 아래·오른쪽 정렬 (일반적인 확인 다이얼로그 패턴) */
+.saved-filter-card-figma__confirm-text {
+  margin: 0 0 16px 0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #3c4043;
+}
+
+.saved-filter-card-figma__confirm-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* 취소 = 보조 액션(테두리만), 삭제 = 주 액션(채움) */
+.saved-filter-card-figma__confirm-cancel {
+  padding: 8px 16px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: #5f6368;
+  background: transparent;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.saved-filter-card-figma__confirm-cancel:hover {
+  background: #f8f9fa;
+  border-color: #bdc1c6;
+}
+
+.saved-filter-card-figma__confirm-delete {
+  padding: 8px 16px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: #fff;
+  background: #ff5531;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.saved-filter-card-figma__confirm-delete:hover {
+  background: #e64a28;
+}
+
+/* 저장한 필터 수정 모달 (Figma 47:3112) */
+.edit-filter-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.edit-filter-modal {
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 24px;
+  padding: 24px;
+  width: 100%;
+  max-width: 402px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.edit-filter-modal__contents {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 28px;
+}
+
+.edit-filter-modal__title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.edit-filter-modal__input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0 12px;
+  border: 1px solid #dadce0;
+  border-radius: 10px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.35;
+  color: #3c4043;
+  box-sizing: border-box;
+}
+
+.edit-filter-modal__input::placeholder {
+  color: #bdc1c6;
+}
+
+.edit-filter-modal__star {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: block;
+  filter: brightness(0) saturate(100%) invert(81%) sepia(34%) saturate(2472%) hue-rotate(1deg) brightness(102%) contrast(101%);
+}
+
+.edit-filter-modal__section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+.edit-filter-modal__label {
+  margin: 0;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 1.35;
+  color: #3c4043;
+}
+
+.edit-filter-modal__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.edit-filter-modal__select-all {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #3c4043;
+  cursor: pointer;
+}
+
+.edit-filter-modal__select-all-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.edit-filter-modal__select-all-text {
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+.edit-filter-modal__chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.edit-filter-modal__chips--wrap {
+  flex-wrap: wrap;
+}
+
+.edit-filter-modal__chip {
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid #dadce0;
+  border-radius: 12px;
+  background: #fff;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.35;
+  color: #5f6368;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.edit-filter-modal__chip--selected {
+  background: #f1f3f4;
+  border-color: #bdc1c6;
+  color: #3c4043;
+}
+
+.edit-filter-modal__chip:hover {
+  background: #f8f9fa;
+}
+
+.edit-filter-modal__checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.edit-filter-modal__checkbox {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.edit-filter-modal__checkbox-icon {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.edit-filter-modal__checkbox-text {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #3c4043;
+}
+
+.edit-filter-modal__buttons {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
+}
+
+.edit-filter-modal__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  padding: 0 20px;
+  border-radius: 16px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.35;
+  cursor: pointer;
+  border: none;
+  box-sizing: border-box;
+}
+
+.edit-filter-modal__btn--primary {
+  flex: 1;
+  background: #fff0ea;
+  color: #ff5531;
+}
+
+.edit-filter-modal__btn--primary:hover:not(:disabled) {
+  background: #ffe0d6;
+}
+
+.edit-filter-modal__btn--primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.edit-filter-modal__btn--secondary {
+  background: #fff;
+  border: 1px solid #dadce0;
+  color: #3c4043;
+}
+
+.edit-filter-modal__btn--secondary:hover {
+  background: #f8f9fa;
+}
+
+.saved-filter-card-figma__star-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.saved-filter-card-figma__star-btn:hover {
+  background: #f1f3f4;
+}
+
+.saved-filter-card-figma__star {
+  width: 32px;
+  height: 32px;
+  display: block;
+  /* 금색 (#FFC200) */
+  filter: brightness(0) saturate(100%) invert(81%) sepia(34%) saturate(2472%) hue-rotate(1deg) brightness(102%) contrast(101%);
+}
+
+.saved-filter-card-figma__edit {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.saved-filter-card-figma__edit:hover {
+  background: #f1f3f4;
+}
+
+.saved-filter-card-figma__edit-icon {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.saved-filter-card-figma__distance,
+.saved-filter-card-figma__food {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+.saved-filter-card-figma__label {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 1.35;
+  color: #3c4043;
+  margin: 0;
+}
+
+.saved-filter-card-figma__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.saved-filter-chip-figma {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.35;
+  color: #5f6368;
+  box-sizing: border-box;
+}
+
+.saved-filter-chip-figma--outlined {
+  background: #ffffff;
+  border: 1px solid #dadce0;
+}
+
+.saved-filter-chip-figma--selected {
+  background: #f1f3f4;
+  border-color: #bdc1c6;
+  color: #3c4043;
+}
+
+.saved-filter-card-figma__open-only {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.saved-filter-card-figma__checkbox-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.saved-filter-card-figma__checkbox-text {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #3c4043;
   margin: 0;
 }
 

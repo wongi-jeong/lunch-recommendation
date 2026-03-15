@@ -3,7 +3,6 @@ import { ref, onMounted, watch } from 'vue'
 import currentLocationIcon from '@/assets/icon-current-location.svg'
 import defaultThumbnail from '@/assets/img-placeholder-restaurant.png'
 import markerPinletIcon from '@/assets/icon-map-marker.svg'
-import favoriteHeartIcon from '@/assets/icon-favorite-heart.svg'
 import refreshIcon from '@/assets/icon-refresh.svg'
 import externalLinkIcon from '@/assets/icon-external-link.svg'
 
@@ -25,6 +24,10 @@ const props = defineProps({
     default: () => []
   },
   routes: {
+    type: Array,
+    default: () => []
+  },
+  favoriteIds: {
     type: Array,
     default: () => []
   }
@@ -360,6 +363,7 @@ const updateMarkers = () => {
         infoWindows.forEach((iw) => iw && iw.close())
         lastOpenInfoWindowIndex = index
         infoWindow.open(map, marker)
+        emit('markerSelect', markerData)
       })
 
       infoWindows.push(infoWindow)
@@ -390,6 +394,8 @@ const updateMarkers = () => {
 // InfoWindow 내용 생성 함수 (이미지와 동일한 레이아웃: 이미지+정보, 하트, 액션 아이콘)
 const createInfoWindowContent = (markerData, index, opts = {}) => {
   const { isRefreshing = false, isSwapped = false } = opts
+  const placeId = markerData.id || markerData.googlePlaceId || markerData.placeId || ''
+  const isFavorited = props.favoriteIds && placeId && props.favoriteIds.includes(String(placeId))
   const name = markerData.name || '식당 이름 없음'
   const category = (markerData.categories && markerData.categories[0]) || '식당'
   const mapsUri = markerData.googleMapsUri || ''
@@ -412,6 +418,8 @@ const createInfoWindowContent = (markerData, index, opts = {}) => {
   if (isRefreshing) cardClasses.push('iw-refreshing')
   if (isSwapped) cardClasses.push('iw-swapped')
 
+  const favoriteBtnClass = isFavorited ? 'info-window-favorite is-favorited' : 'info-window-favorite'
+
   return `
     <style>
       .iw-refreshing { pointer-events: none; }
@@ -424,51 +432,80 @@ const createInfoWindowContent = (markerData, index, opts = {}) => {
       @keyframes iw-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       .iw-swapped { animation: iw-swap-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
       @keyframes iw-swap-in { 0% { opacity: 0; transform: translateY(18px) scale(0.96); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+      /* 찜하기 버튼 — 바텀시트 카드와 동일한 ON/OFF 디자인 (Figma 인포윈도우 크기에 맞춤) */
+      .info-window-favorite {
+        position: absolute; right: 0; bottom: 0; width: 36px; height: 36px; border: none; border-radius: 50%;
+        background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center;
+        cursor: pointer; z-index: 1; padding: 0;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+        transition: background 0.18s ease-out, box-shadow 0.18s ease-out, transform 0.18s ease-out;
+      }
+      .info-window-favorite:hover {
+        background: rgba(0, 0, 0, 0.65);
+        transform: translateY(-1px) scale(1.05);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+      }
+      .info-window-favorite:active {
+        transform: translateY(0) scale(0.96);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+      }
+      .info-window-favorite.is-favorited {
+        background: rgba(0, 0, 0, 0.7);
+      }
+      .info-window-favorite .iw-favorite-icon {
+        width: 22px; height: 22px;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+      }
+      .info-window-favorite .iw-favorite-icon-path {
+        fill: none; stroke: #ffffff; stroke-width: 2.1;
+        stroke-linecap: round; stroke-linejoin: round;
+        transition: fill 0.15s ease-out, stroke 0.15s ease-out;
+      }
+      .info-window-favorite.is-favorited .iw-favorite-icon-path {
+        fill: #ff5531; stroke: #ff5531;
+      }
     </style>
     <div class="${cardClasses.join(' ')}" data-marker-idx="${index}" style="
-      position: relative; display: flex; padding: 12px; width: 260px; font-family: 'Pretendard', sans-serif;
-      background: #fff; border-radius: 12px; box-sizing: border-box; gap: 12px;
+      position: relative; display: flex; align-items: center; padding: 16px; width: 300px; font-family: 'Pretendard', sans-serif;
+      background: #fff; border-radius: 24px; box-sizing: border-box; gap: 12px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.12);
     ">
       ${isRefreshing ? '<div class="iw-shimmer"></div>' : ''}
       <div class="iw-image-wrap" style="
-        position: relative; flex-shrink: 0; width: 88px; height: 88px; border-radius: 8px;
+        position: relative; flex-shrink: 0; width: 96px; height: 96px; border-radius: 4px;
         overflow: hidden; background: #f5f5f5;
       ">
         <img src="${thumbnailSrc}" alt="${esc(name)}" style="
           width: 100%; height: 100%; object-fit: cover;
         " onerror="this.src='${defaultThumbnail}'" />
-        <button type="button" class="info-window-favorite" data-action="favorite" title="찜하기" style="
-          position: absolute; right: 0; bottom: 0; width: 32px; height: 32px; border: none;
-          border-radius: 50%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
-          cursor: pointer; padding: 0;
-        ">
-          <img src="${favoriteHeartIcon}" alt="찜" style="width: 18px; height: 18px; filter: brightness(0) invert(1);" />
+        <button type="button" class="${favoriteBtnClass}" data-action="favorite" title="${isFavorited ? '찜 해제' : '찜하기'}" aria-label="${isFavorited ? '찜 해제' : '찜하기'}">
+          <svg class="iw-favorite-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="iw-favorite-icon-path" d="M12 20.25c-.32 0-.64-.1-.9-.3-.76-.56-1.45-1.09-2.08-1.56-2.53-1.92-4.42-3.36-4.42-5.89C4.6 9.5 6.1 8 7.92 8c1.12 0 2.12.52 2.78 1.39L12 10.9l1.3-1.51C13.96 8.52 14.96 8 16.08 8 17.9 8 19.4 9.5 19.4 12.5c0 2.53-1.89 3.97-4.42 5.89-.63.47-1.32 1-2.08 1.56-.26.2-.58.3-.9.3Z" />
+          </svg>
         </button>
       </div>
-      <div class="iw-info" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
-        <div class="info-window-header" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 6px;">
-          <h3 class="info-window-name" style="
-            font-size: 15px; font-weight: 700; color: #3c4043; margin: 0; line-height: 1.3;
-            overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-          ">${esc(name)}</h3>
-          <div class="info-window-actions" style="display: flex; gap: 4px; flex-shrink: 0;">
-            <button type="button" class="info-window-action" data-action="refresh" title="새로고침"${refreshBtnDisabled} style="
-              width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
-              border: none; border-radius: 4px; background: transparent; cursor: pointer; padding: 0; transition: background 0.2s;
-            " onclick="event.preventDefault();event.stopPropagation();(window.__lunchMapRefresh||function(){})(${markerData.restaurantIndex ?? index})">
-              <img src="${refreshIcon}" alt="새로고침" class="${isRefreshing ? 'iw-refresh-spin' : ''}" style="width: 18px; height: 18px; object-fit: contain;" />
-            </button>
-            <a href="${mapsUri || directionsUri}" target="_blank" rel="noopener" class="info-window-action" title="Google 지도" style="
-              width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
-              border-radius: 4px; text-decoration: none; transition: background 0.2s;
-            ">
-              <img src="${externalLinkIcon}" alt="외부 링크" style="width: 18px; height: 18px; object-fit: contain;" />
-            </a>
-          </div>
-        </div>
+      <div class="iw-info" style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px;">
+        <h3 class="info-window-name" style="
+          font-size: 20px; font-weight: 600; color: #000; margin: 0; line-height: 1.35;
+          overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        ">${esc(name)}</h3>
         <p class="info-window-category" style="
-          font-size: 12px; font-weight: 500; color: #3c4043; margin: 0;
+          font-size: 16px; font-weight: 500; color: #000; margin: 0; line-height: 1.35;
         ">${esc(category)}</p>
+      </div>
+      <div class="info-window-actions" style="display: flex; flex-direction: column; gap: 4px; flex-shrink: 0;">
+        <button type="button" class="info-window-action" data-action="refresh" title="새로고침"${refreshBtnDisabled} style="
+          width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+          border: none; border-radius: 6px; background: transparent; cursor: pointer; padding: 0; transition: background 0.2s;
+        " onclick="event.preventDefault();event.stopPropagation();(window.__lunchMapRefresh||function(){})(${markerData.restaurantIndex ?? index})">
+          <img src="${refreshIcon}" alt="새로고침" class="${isRefreshing ? 'iw-refresh-spin' : ''}" style="width: 22px; height: 22px; object-fit: contain;" />
+        </button>
+        <a href="${mapsUri || directionsUri}" target="_blank" rel="noopener" class="info-window-action" title="Google 지도" style="
+          width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+          border-radius: 6px; text-decoration: none; transition: background 0.2s;
+        ">
+          <img src="${externalLinkIcon}" alt="외부 링크" style="width: 22px; height: 22px; object-fit: contain;" />
+        </a>
       </div>
     </div>
   `
@@ -526,6 +563,27 @@ watch(() => props.center, () => {
   if (map) {
     map.setCenter(props.center)
   }
+}, { deep: true })
+
+// 즐겨찾기 목록(DB API 동기화 포함)이 바뀌면 모든 InfoWindow 카드의 하트 상태 갱신
+watch(() => props.favoriteIds, () => {
+  if (!map || !infoWindows.length) return
+  props.markers.forEach((markerData, idx) => {
+    const iw = infoWindows[idx]
+    if (!iw || !markerData || !markerData.name) return
+    iw.setContent(createInfoWindowContent(markerData, idx, { isRefreshing: false, isSwapped: false }))
+    const container = iw.getContent()
+    if (container && typeof container.querySelector === 'function') {
+      const favoriteBtn = container.querySelector('[data-action="favorite"]')
+      if (favoriteBtn) {
+        favoriteBtn.addEventListener('click', (e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          emit('toggleFavorite', markerData)
+        })
+      }
+    }
+  })
 }, { deep: true })
 
 // 현재 사용자 위치를 Promise로 반환하는 메서드
@@ -595,7 +653,7 @@ const getCurrentUserLocation = () => {
 }
 
 // 외부에서 호출 가능하도록 expose
-const emit = defineEmits(['refresh', 'toggleFavorite'])
+const emit = defineEmits(['refresh', 'toggleFavorite', 'markerSelect'])
 
 // InfoWindow 내 인라인 onclick에서 호출 (다른 document 컨텍스트 대응)
 if (typeof window !== 'undefined') {
@@ -695,13 +753,23 @@ defineExpose({
   object-fit: contain;
 }
 
-/* InfoWindow 스타일 오버라이드 — 콘텐츠 완벽 중앙 정렬 */
+/* InfoWindow 스타일 오버라이드 — 콘텐츠 완벽 중앙 정렬, 주황색 테두리, 화살표 제거 */
 :deep(.gm-style-iw-chr) {
+  display: none !important;
+}
+
+:deep(.gm-style-iw-t::after),
+:deep(.gm-style-iw-tc::after) {
+  background: none !important;
+  box-shadow: none !important;
   display: none !important;
 }
 
 :deep(.gm-style-iw-c) {
   padding: 0 !important;
+  border: 2px solid #FF5531 !important;
+  border-radius: 24px !important;
+  overflow: hidden !important;
 }
 
 :deep(.gm-style-iw-d) {

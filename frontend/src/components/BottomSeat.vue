@@ -31,7 +31,8 @@
             class="recommendation-card"
             :class="{
               'is-refreshing': refreshingIndex === index,
-              'is-swapped': swappedIndex === index
+              'is-swapped': swappedIndex === index,
+              'is-selected': selectedIndex === index
             }"
             @click="handleCardClick(restaurant)"
           >
@@ -141,6 +142,11 @@ const props = defineProps({
   favoriteIds: {
     type: Array,
     default: () => []
+  },
+  /** 눌린(선택된) 카드 인덱스. -1이면 none */
+  selectedIndex: {
+    type: Number,
+    default: -1
   }
 })
 
@@ -565,6 +571,10 @@ const formatDistance = (meters) => {
 
 .recommendation-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.recommendation-card.is-selected {
+  border: 2px solid #FF5531;
 }
 
 /* 순번 배지 (Figma: 32×32, rx 6, #3C4043, 이미지 좌상단) */

@@ -3,18 +3,19 @@
   top: 10px;
   left: 360px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   z-index: 1000;
 }
 
 .filter-panel {
-  width: 400px;
-  background-color: white;
-  border-radius: 16px;
+  width: 402px;
+  background-color: #fff;
+  border-radius: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   overflow: visible;
   flex-shrink: 0;
+  padding: 24px;
 }
 
 .filter-panel:not(.collapsed) {
@@ -22,59 +23,203 @@
 }
 
 .filter-panel.collapsed {
-  width: fit-content;
-  height: fit-content;
+  width: 402px;
+  padding: 24px;
+}
+
+/* 헤더 아래 영역 */
+.filter-panel__body {
+  position: relative;
+  min-height: 0;
+}
+
+.filter-panel.dropdown-open .saved-filters-dropdown {
+  position: relative;
+  z-index: 2;
 }
 
 .filter-chips-outside {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 16px;
 }
 
+/* Figma 47:1684 필터 헤더 - 필터 텍스트 오른쪽에 새 필터 버튼 */
 .filter-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e8eaed;
-  height: 12px;
+  gap: 16px;
+  padding: 0;
+  margin: 0;
+  min-height: 32px;
 }
 
 .filter-header.collapsed {
-  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.filter-title {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.35;
+  color: #3c4043;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* 새 필터 + 화살표 하나의 버튼 */
+.filter-header__new-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #3c4043;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.filter-header__new-filter-btn:hover {
+  color: #202124;
+}
+
+.filter-header__new-filter-btn .filter-header__dropdown-icon {
+  color: #5f6368;
+}
+
+.filter-header__new-filter-btn:hover .filter-header__dropdown-icon {
+  color: #3c4043;
+}
+
+.filter-header__new-filter-text {
+  flex-shrink: 0;
+}
+
+.filter-header__dropdown-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+/* 내가 저장한 필터 드롭다운: Figma 47:1105 */
+.saved-filters-dropdown {
+  margin-top: 24px;
+  width: 100%;
+}
+
+.saved-filters-dropdown__list {
+  border: 1px solid #eff2f5;
+  border-radius: 4px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fff;
+}
+
+.saved-filters-dropdown__loading,
+.saved-filters-dropdown__empty {
+  font-family: 'Pretendard', sans-serif;
+  font-size: 16px;
+  color: #5f6368;
+  margin: 0;
+  padding: 8px 0;
+}
+
+.saved-filters-dropdown__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #3c4043;
+  text-align: left;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.saved-filters-dropdown__row:hover {
+  color: #ff5531;
+}
+
+.saved-filters-dropdown__row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-filters-dropdown__close {
+  width: 100%;
+  height: 56px;
+  margin-top: 12px;
+  padding: 0 20px;
+  border: 1px solid #dadce0;
+  border-radius: 16px;
+  background: #fff;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.35;
+  color: #3c4043;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.saved-filters-dropdown__close:hover {
+  background: #f8f9fa;
+  border-color: #dadce0;
 }
 
 .filter-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
+  gap: 5px;
+  padding: 8px 16px;
   background-color: #fff;
   border: 1px solid #e8eaed;
-  border-radius: 20px;
+  border-radius: 26px;
   font-family: 'Pretendard', sans-serif;
   font-weight: 500;
-  font-size: 14px;
+  font-size: 18px;
   color: #5f6368;
   white-space: nowrap;
 }
 
 .filter-chip--distance {
-  padding: 6px 12px;
+  padding: 8px 16px;
 }
 
 .filter-chip--removable {
-  padding: 6px 8px 6px 12px;
+  padding: 8px 10px 8px 16px;
 }
 
 .filter-chip-remove {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 23px;
+  height: 23px;
   padding: 0;
   border: none;
   background: transparent;
@@ -89,20 +234,6 @@
   background-color: rgba(0, 0, 0, 0.06);
 }
 
-.filter-title {
-  font-family: 'Pretendard', sans-serif;
-  font-weight: 700;
-  font-size: 20px;
-  color: #202124;
-}
-
-.filter-subtitle {
-  font-family: 'Pretendard', sans-serif;
-  font-weight: 400;
-  font-size: 16px;
-  color: #5f6368;
-  margin-left: 8px;
-}
 
 .icon-button {
   display: flex;
@@ -115,7 +246,17 @@
   cursor: pointer;
   border-radius: 8px;
   transition: background-color 0.2s;
+}
+
+.icon-button--star {
   margin-left: auto;
+}
+
+.icon-button--expand {
+  margin-left: 0;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
 }
 
 .icon-button:hover {
@@ -123,7 +264,8 @@
 }
 
 .filter-content {
-  padding: 24px;
+  padding: 0;
+  padding-top: 28px;
 }
 
 .filter-section {
@@ -180,25 +322,39 @@
   margin-bottom: 16px;
 }
 
-.checkbox-wrapper {
+/* 수정 모달과 동일한 체크박스 디자인 (아이콘 + 라벨) */
+.filter-panel-checkbox {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.checkbox-input {
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  accent-color: #ff5531;
-}
-
-.checkbox-label {
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
   font-family: 'Pretendard', sans-serif;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 16px;
-  color: #202124;
+  line-height: 1.35;
+  color: #3c4043;
   cursor: pointer;
+}
+
+.filter-panel-checkbox:hover {
+  color: #202124;
+}
+
+.filter-panel-checkbox__icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.filter-panel-checkbox__label {
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 .food-type-buttons {
@@ -249,12 +405,18 @@
 
 .recommend-button--collapsed {
   width: auto;
-  padding: 6px 12px;
-  font-size: 14px;
+  padding: 8px 16px;
+  font-size: 18px;
   font-weight: 600;
-  border-radius: 20px;
+  border-radius: 26px;
   margin-bottom: 0;
   flex-shrink: 0;
+}
+
+.recommend-button--collapsed .loading-spinner {
+  width: 23px;
+  height: 23px;
+  border-width: 2px;
 }
 
 .recommend-button:hover {
