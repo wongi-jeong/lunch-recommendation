@@ -4,18 +4,4 @@
   </div>
 </template>
 
-<style scoped>
-.ai-recommendation {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #fdf8f3;
-}
-
-.placeholder-text {
-  font-family: 'Pretendard', sans-serif;
-  font-size: 20px;
-  color: #5f6368;
-}
-</style>
+<style scoped src="./AiRecommendation.css"></style>
