@@ -66,8 +66,35 @@ Google Places で周辺の飲食店を検索し、フィルター・ルーレッ
 
 ## 前提条件
 
-- **JDK 25**, **Node.js ≥ 22.12**（または 20.19）, **MySQL 8+**
-- **Google Maps API キー 2つ** — サーバー側(Places API 用)とクライアント側(Maps JavaScript 用)を分けて発行することを推奨
+- **Docker で実行（推奨）:** Docker Desktop / Docker Compose だけで OK。（MySQL・JDK・Node のインストール不要）
+- **ローカルで直接実行:** JDK 25, Node.js ≥ 22.12（または 20.19）, MySQL 8+
+- **Google Maps API キーは任意** — なければ**デモモード**（サンプルデータ）で動作します。実データ・地図を使うにはサーバー側(Places API)・クライアント側(Maps JavaScript)のキーを発行してください。
+
+## Docker で実行（最も簡単）
+
+MySQL のインストールも Google キーもなしで、**一発で**起動します（デモモード既定）。
+
+```bash
+docker compose up --build
+```
+
+MySQL・バックエンド・フロントがコンテナで一緒に起動します。その後:
+
+1. ブラウザで **http://localhost:5173** にアクセス
+2. **料理の種類を1つ以上選択**して**推薦を受ける**をクリック
+3. **位置情報を許可**（拒否しても既定位置で動作）→ **サンプル飲食店の推薦カード**が表示
+4. ルーレット・投票・お気に入りも動作（お気に入り・マイページ等のパーソナライズはログイン後）
+
+> デモモードでは実際の**地図タイルのみ**表示されません（クライアントキーが必要）。推薦リスト・ルーレット・投票などは正常です。
+
+実際の Google データ/地図を使うには `.env` にキーを入れて再ビルド：
+
+```bash
+cp .env.example .env      # GOOGLE_MAPS_API_KEY / VITE_GOOGLE_MAPS_API_KEY を入力
+docker compose up --build
+```
+
+> 以下「実行方法」は Docker なしでローカルで直接起動する手順です。
 
 ## 実行方法
 
@@ -96,16 +123,14 @@ npm install
 npm run dev                # http://localhost:5173 (/api → バックエンドへプロキシ)
 ```
 
-## 使ってみる（最初の推薦まで）
+## 実データで使う（Google キー — 任意）
 
-1. **Google API キーを2つ発行** — [Google Cloud Console](https://console.cloud.google.com) で
-   - **Places API (New)** を有効化 → サーバー側キー → バックエンド `application.properties` の `GOOGLE_MAPS_API_KEY`
-   - **Maps JavaScript API** を有効化 → クライアント側キー → フロント `.env` の `VITE_GOOGLE_MAPS_API_KEY` *(HTTP リファラー制限を推奨)*
-2. 上記 [実行方法](#実行方法) の通り **DB・バックエンド・フロントエンド**を起動。
-3. ブラウザで **http://localhost:5173** にアクセス。
-4. **位置情報の許可**を行います *(位置ベース推薦のため必須)*。
-5. **メニュー推薦を受ける** → 人数/フィルター（カテゴリ・営業中・半径）を設定 → **周辺飲食店の推薦カード**を確認。*(ログイン不要で利用可能)*
-6. **ルーレット**でランダムに決めたり、**投票リンク**をチームに共有したり、気に入った店を**お気に入り**に。*(お気に入り・マイページ等のパーソナライズ機能はログイン後)*
+デモモード（サンプルデータ）でも十分試せますが、**実際の周辺飲食店・地図**を使うには Google Maps API キーを発行して設定します。[Google Cloud Console](https://console.cloud.google.com) で:
+
+- **Places API (New)** を有効化 → サーバー側キー → `GOOGLE_MAPS_API_KEY`
+- **Maps JavaScript API** を有効化 → クライアント側キー → `VITE_GOOGLE_MAPS_API_KEY` *(HTTP リファラー制限を推奨)*
+
+Docker ならルートの `.env` に、ローカル実行なら `application.properties`・フロント `.env` に入れます。キー設定後 `docker compose up --build` で再ビルドすると実データと地図が表示されます。（低使用量は月間無料枠内でほぼ無料）
 
 ## 環境変数
 

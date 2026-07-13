@@ -1,3 +1,4 @@
+
 package kr.io.diduga.lunch_recommendation.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -26,8 +27,9 @@ public class RestaurantService {
 	private final RestTemplate restTemplate = new RestTemplate();
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
-	// application.properties 파일의 GOOGLE_MAPS_API_KEY 값을 주입받습니다.
-	@Value("${GOOGLE_MAPS_API_KEY}")
+	// application.properties 또는 환경변수의 GOOGLE_MAPS_API_KEY 값을 주입받습니다.
+	// 비어 있으면(키 미설정) 데모 모드로 동작하여 샘플 데이터를 반환합니다.
+	@Value("${GOOGLE_MAPS_API_KEY:}")
 	private String googlePlacesApiKey;
 
 	private static final String GOOGLE_PLACES_NEARBY_SEARCH_URL = "https://places.googleapis.com/v1/places:searchNearby";
@@ -98,6 +100,11 @@ public class RestaurantService {
 	 */
 	public List<RestaurantDto> searchNearbyRestaurants(double latitude, double longitude, int radius,
 			List<String> filterCategories) {
+		// 데모 모드: GOOGLE_MAPS_API_KEY 가 비어 있으면 실제 Google 호출 없이 샘플 데이터로 대체
+		if (googlePlacesApiKey == null || googlePlacesApiKey.isBlank()) {
+			return sampleRestaurants(latitude, longitude, filterCategories);
+		}
+
 		// 요청 본문 구성
 		Map<String, Object> requestBody = new HashMap<>();
 
@@ -687,6 +694,10 @@ public class RestaurantService {
 		if (photoName == null || photoName.isBlank()) {
 			return null;
 		}
+		// 데모 모드(키 없음)에서는 사진 조회를 건너뛴다
+		if (googlePlacesApiKey == null || googlePlacesApiKey.isBlank()) {
+			return null;
+		}
 		String url = String.format(GOOGLE_PLACES_PHOTO_MEDIA_URL + "?maxHeightPx=400&skipHttpRedirect=true", photoName);
 		HttpHeaders headers = new HttpHeaders();
 		headers.set("X-Goog-Api-Key", googlePlacesApiKey);
@@ -701,6 +712,47 @@ public class RestaurantService {
 		} catch (RestClientException | JsonProcessingException e) {
 			return null;
 		}
+	}
+
+	/**
+	 * 데모 모드: GOOGLE_MAPS_API_KEY 가 비어 있을 때 실제 Google 호출 없이 반환하는 샘플 식당 데이터.
+	 * API 키 없이도 추천/필터/룰렛/투표 등 UI 흐름을 시연할 수 있게 한다. (지도 타일 렌더링은 클라이언트 JS 키 필요)
+	 */
+	private List<RestaurantDto> sampleRestaurants(double latitude, double longitude, List<String> filterCategories) {
+		logger.info("[demo-mode] GOOGLE_MAPS_API_KEY 미설정 → 샘플 식당 데이터 반환");
+		List<RestaurantDto> samples = new ArrayList<>();
+		samples.add(sample("산들해장국", "4.5", "서울시 예시구 샘플로 1", "korean_restaurant", 120, latitude + 0.0009,
+				longitude + 0.0005, true));
+		samples.add(sample("스시노아", "4.7", "서울시 예시구 샘플로 5", "japanese_restaurant", 240, latitude + 0.0012,
+				longitude - 0.0007, true));
+		samples.add(sample("황금성 중화요리", "4.2", "서울시 예시구 샘플로 8", "chinese_restaurant", 310, latitude - 0.0008,
+				longitude + 0.0011, false));
+		samples.add(sample("파스타 부오노", "4.6", "서울시 예시구 샘플로 12", "italian_restaurant", 180, latitude + 0.0005,
+				longitude + 0.0014, true));
+		samples.add(sample("버거스택", "4.1", "서울시 예시구 샘플로 3", "hamburger_restaurant", 90, latitude - 0.0004,
+				longitude - 0.0004, true));
+		samples.add(sample("포포 쌀국수", "4.4", "서울시 예시구 샘플로 20", "vietnamese_restaurant", 420, latitude + 0.0016,
+				longitude + 0.0009, true));
+		samples.add(sample("고기굽는날", "4.3", "서울시 예시구 샘플로 7", "barbecue_restaurant", 260, latitude - 0.0011,
+				longitude - 0.0009, false));
+		samples.add(sample("카페 모아", "4.8", "서울시 예시구 샘플로 15", "cafe", 150, latitude + 0.0003, longitude - 0.0012,
+				true));
+
+		if (filterCategories != null && !filterCategories.isEmpty()) {
+			List<RestaurantDto> filtered = filterRestaurantsByCategories(samples, filterCategories);
+			if (!filtered.isEmpty()) {
+				return filtered;
+			}
+		}
+		return samples;
+	}
+
+	private RestaurantDto sample(String name, String rating, String address, String type, int distanceMeters,
+			double latitude, double longitude, boolean openNow) {
+		String placeTypesJson = "[\"" + type + "\",\"restaurant\"]";
+		return RestaurantDto.of(name, new BigDecimal(rating), address, placeTypesJson, null,
+				"demo-" + Integer.toHexString(name.hashCode()), null, null, distanceMeters, "WALKING", latitude,
+				longitude, openNow);
 	}
 
 }

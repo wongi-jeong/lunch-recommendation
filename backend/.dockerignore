@@ -1,0 +1,8 @@
+build
+.gradle
+.idea
+*.iml
+bin
+out
+HELP.md
+src/main/resources/application.properties
