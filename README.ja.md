@@ -7,6 +7,8 @@
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)
 
+📅 **2025.11 – 2026.03**  ·  👥 **チーム4名**（開発2・デザイン2）  ·  🇰🇷 チームプロジェクト
+
 ユーザーの**位置と好み**をもとにランチメニューを推薦するフルスタック Web アプリケーションです。
 Google Places で周辺の飲食店を検索し、フィルター・ルーレット・投票・お気に入りで「今日なに食べる？」をみんなで決めます。
 

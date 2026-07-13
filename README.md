@@ -7,6 +7,8 @@
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)
 
+📅 **2025.11 – 2026.03**  ·  👥 **팀 4명** (개발 2 · 디자인 2)  ·  🇰🇷 팀 프로젝트
+
 사용자의 **위치와 선호도**를 기반으로 점심 메뉴를 추천하는 풀스택 웹 애플리케이션입니다.
 Google Places로 주변 식당을 찾고, 필터·룰렛·투표·즐겨찾기로 "오늘 뭐 먹지?"를 함께 정합니다.
 
