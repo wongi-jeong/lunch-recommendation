@@ -275,6 +275,23 @@ const getCategoriesFromApiTypes = (restaurant) => {
   }
 }
 
+// 데모/키 없음 상황용: 지도(GoogleMap) 없이 브라우저 Geolocation 으로 현재 위치를 얻는다.
+// 권한 거부/미지원 시 기본 좌표(서울시청)로 폴백해 데모가 항상 동작하도록 한다.
+const getBrowserLocation = () => {
+  const FALLBACK = { lat: 37.5665, lng: 126.978 }
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(FALLBACK)
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(FALLBACK),
+      { enableHighAccuracy: true, timeout: 8000 }
+    )
+  })
+}
+
 // 추천 받기 버튼 클릭 핸들러
 const handleRecommend = async () => {
   if (isLoading.value) return
@@ -282,12 +299,11 @@ const handleRecommend = async () => {
   isLoading.value = true
   
   try {
-    // GoogleMap 컴포넌트에서 현재 위치 가져오기
-    if (!googleMapRef.value) {
-      throw new Error('지도가 아직 로드되지 않았습니다.')
-    }
-    
-    const userLocation = await googleMapRef.value.getCurrentUserLocation()
+    // 위치 가져오기: 지도(GoogleMap)가 로드돼 있으면 그걸로, 없으면(데모/키 없음)
+    // 브라우저 Geolocation 으로 폴백한다.
+    const userLocation = googleMapRef.value
+      ? await googleMapRef.value.getCurrentUserLocation()
+      : await getBrowserLocation()
     
     // 선택된 거리(radius) 값 가져오기
     const radius = filters.value.distance // 300, 800, 1200 중 하나
