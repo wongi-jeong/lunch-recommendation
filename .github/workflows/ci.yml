@@ -26,9 +26,10 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # 컴파일 + 패키징 검증. 테스트는 DB(MySQL)가 필요해 CI에서는 실행 생략(-x test).
+      # 컴파일 + 패키징 검증(Docker 빌드와 동일한 bootJar). 테스트는 DB(MySQL) 필요 → 생략.
+      # 'build' 대신 'bootJar' 를 써서 Spotless 포맷 검사(spotlessCheck)에 막히지 않게 한다.
       - name: Build
-        run: ./gradlew build -x test --no-daemon --stacktrace
+        run: ./gradlew clean bootJar -x test --no-daemon --stacktrace
 
   frontend:
     name: Frontend (Vite build, Node 22)
