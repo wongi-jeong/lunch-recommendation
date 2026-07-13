@@ -1,2 +1,16 @@
-# Gradle (root build cache)
+# ── OS ──
+.DS_Store
+
+# ── Gradle (root build cache) ──
 .gradle/
+
+# ── 루트 레벨 환경변수 (있을 경우 대비) ──
+.env
+.env.*
+!.env.example
+
+# ── AI 도구 설정 (제품과 무관) ──
+.cursor/
+
+# 참고: backend/ 와 frontend/ 는 각자의 .gitignore 로
+#       build·node_modules·dist·환경변수·로컬 설정(application.properties)을 관리합니다.
