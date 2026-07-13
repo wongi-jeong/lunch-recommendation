@@ -96,6 +96,17 @@ npm install
 npm run dev                # http://localhost:5173 (/api → 백엔드로 프록시)
 ```
 
+## 사용해보기 (첫 추천까지)
+
+1. **Google API 키 2개 발급** — [Google Cloud Console](https://console.cloud.google.com)에서
+   - **Places API (New)** 활성화 → 서버측 키 → 백엔드 `application.properties`의 `GOOGLE_MAPS_API_KEY`
+   - **Maps JavaScript API** 활성화 → 클라이언트측 키 → 프론트 `.env`의 `VITE_GOOGLE_MAPS_API_KEY` *(HTTP 리퍼러 제한 권장)*
+2. 위 [실행 방법](#실행-방법)대로 **DB · 백엔드 · 프론트엔드**를 띄웁니다.
+3. 브라우저에서 **http://localhost:5173** 접속.
+4. **위치 권한을 허용**합니다 *(위치 기반 추천이라 필수)*.
+5. **메뉴 추천받기** → 인원/필터(카테고리·영업중·반경) 설정 → **주변 식당 추천 카드** 확인. *(로그인 없이 바로 가능)*
+6. **룰렛**을 돌려 랜덤으로 정하거나, **투표 링크**를 팀에 공유하거나, 마음에 드는 곳을 **즐겨찾기**하세요. *(즐겨찾기·마이페이지 등 개인화 기능은 로그인 후 이용)*
+
 ## 환경변수
 
 | 위치 | 변수 | 설명 |
